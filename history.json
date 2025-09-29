@@ -1,0 +1,58 @@
+[
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "BFS",
+    "mode": "Auto",
+    "moves": 32,
+    "time": 36
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "BFS",
+    "mode": "Auto",
+    "moves": 32,
+    "time": 37,
+    "steps": 10,
+    "visited": 60,
+    "generated": 199,
+    "time_ms": 0.0
+  },
+  {
+    "rows": 8,
+    "cols": 12,
+    "algo": "DFS",
+    "mode": "Auto",
+    "moves": 48,
+    "time": 0,
+    "steps": 19,
+    "visited": 90,
+    "generated": 145,
+    "time_ms": 5.6
+  },
+  {
+    "rows": 8,
+    "cols": 12,
+    "algo": "BFS",
+    "mode": "Auto",
+    "moves": 48,
+    "time": 0,
+    "steps": 2,
+    "visited": 7,
+    "generated": 8,
+    "time_ms": 0.0
+  },
+  {
+    "rows": 8,
+    "cols": 12,
+    "algo": "BFS",
+    "mode": "Auto",
+    "moves": 49,
+    "time": 0,
+    "steps": 2,
+    "visited": 7,
+    "generated": 8,
+    "time_ms": 0.0
+  }
+]
