@@ -54,5 +54,17 @@
     "visited": 7,
     "generated": 8,
     "time_ms": 0.0
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "A*",
+    "mode": "Auto",
+    "moves": 32,
+    "time": 0,
+    "steps": 3,
+    "visited": 3,
+    "generated": 4,
+    "time_ms": 0.1
   }
 ]
