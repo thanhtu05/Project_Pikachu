@@ -3,15 +3,16 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 
 class GameUI:
-    def __init__(self, root, rows, cols, cell_size):
+    def __init__(self, root, rows, cols, cell_size, game):
         self.root = root
         self.rows = rows
         self.cols = cols
         self.cell_size = cell_size
+        self.game = game
 
         # Load ảnh background
         self.bg_image = Image.open("background/backgroundmain.png")
-        self.bg_image = self.bg_image.resize((1000, 1000))
+        self.bg_image = self.bg_image.resize((1000, 1000))  # Điều chỉnh kích thước phù hợp
         self.bg_photo = ImageTk.PhotoImage(self.bg_image)
 
         # Tạo canvas làm nền chính
@@ -25,22 +26,6 @@ class GameUI:
         # Tạm thời tắt overlay để bàn cờ hiển thị bình thường
         self.background_overlay = None
         self.overlay_rect = None
-
-        # Uncomment để bật lại overlay khi cần:
-        # self.background_overlay = tk.Canvas(
-        #     self.bg_canvas,
-        #     width=1000,
-        #     height=700,
-        #     highlightthickness=0,
-        #     bg=""
-        # )
-        # self.background_overlay.place(x=0, y=0)
-        # self.overlay_rect = self.background_overlay.create_rectangle(
-        #     0, 0, 1000, 700,
-        #     fill="",  # ban đầu trong suốt
-        #     outline=""
-        # )
-        # self.background_overlay.lower()
 
         # Style
         style = ttk.Style()
@@ -59,19 +44,39 @@ class GameUI:
                         foreground="#2C3E50")
 
         # Labels
-        self.moves_label = ttk.Label(self.bg_canvas, text="Moves: 0", foreground="#E74C3C")
+        self.moves_label = tk.Label(
+            self.bg_canvas,
+            text="Moves: 0",
+            fg="#E74C3C",
+            bg="#FFFFFF",  # chọn màu nền thật
+            font=("Arial", 12, "bold")
+        )
         self.moves_label_window = self.bg_canvas.create_window(100, 20, window=self.moves_label, anchor="nw")
 
-        self.time_label = ttk.Label(self.bg_canvas, text="Time: 0s", foreground="#27AE60")
+        self.bg_canvas.tag_raise(self.moves_label_window)
+
+        self.time_label = tk.Label(
+            self.bg_canvas,
+            text="Time: 0s",
+            fg="#27AE60",
+            bg="#FFFFFF",
+            font=("Arial", 12, "bold")
+        )
         self.time_label_window = self.bg_canvas.create_window(200, 20, window=self.time_label, anchor="nw")
+        self.bg_canvas.tag_raise(self.time_label_window)
 
         # Sound toggle
         self.sound_var = tk.BooleanVar(value=True)
+        style = ttk.Style()
+        style.configure("MyCheck.TCheckbutton",
+                        background="#FFFFFF",  # nền
+                        foreground="#2C3E50")
         self.sound_toggle = ttk.Checkbutton(
             self.bg_canvas,
             text="🔊 Sound",
             variable=self.sound_var,
             command=self.toggle_sound,
+            style="MyCheck.TCheckbutton",
             width=12
         )
         self.sound_toggle_window = self.bg_canvas.create_window(350, 20, window=self.sound_toggle, anchor="nw")
