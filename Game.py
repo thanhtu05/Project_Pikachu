@@ -13,7 +13,7 @@ import os
 class PikachuGame:
     def __init__(self, root, rows=8, cols=12):  # Thêm tham số mặc định
         self.root = root
-        self.root.title("Pikachu")
+        self.root.title("Pikachu - Pham Thi Van Anh - Hoang Thanh Tu")
         self.rows, self.cols = rows, cols
         self.cell_size = 60
         self.click_tolerance = 15  # Vùng click mở rộng xung quanh mỗi ô
@@ -30,6 +30,8 @@ class PikachuGame:
         self.background_revealed = 0  # Số ô đã được xóa (để lộ background)
         self.fast_mode = False  # Chế độ tua nhanh
 
+        self.simulation_highlights = []  # Lưu các highlight trong simulation
+
         pygame.mixer.init()
         self.sounds = {
             "bg": "sounds/bg_music.mp3",
@@ -42,10 +44,6 @@ class PikachuGame:
         self.board = Board(self.rows, self.cols, self.icons)
         self.ui = GameUI(root, self.rows, self.cols, self.cell_size, self)  # Sử dụng giao diện mới
         self.root.geometry("1000x1000")  # Đặt kích thước cửa sổ
-        # board_width = self.cols * self.cell_size
-        # board_height = self.rows * self.cell_size
-        # ui_padding = 200
-        # self.root.geometry(f"{board_width}x{board_height + ui_padding}")
         self.algorithms = SearchAlgorithms(self.board.board, self.rows, self.cols)
 
         self.ui.new_btn.config(command=self.new_game)
@@ -60,6 +58,12 @@ class PikachuGame:
 
         self.image_ids = {}
         self.new_game()
+
+    def clear_simulation_highlights(self):
+        """Xóa tất cả highlight của simulation"""
+        for highlight_id in self.simulation_highlights:
+            self.ui.canvas.delete(highlight_id)
+        self.simulation_highlights.clear()
 
     def play_music_bg(self):
         if self.sound_enabled:
@@ -85,6 +89,7 @@ class PikachuGame:
         return icons
 
     def new_game(self):
+        """Khởi tạo game mới - reset cả simulation"""
         self.auto_running = False
         self.game_paused = False
         self.moves = 0
@@ -92,11 +97,14 @@ class PikachuGame:
         self.ui.moves_label.config(text="Moves: 0")
         self.ui.time_label.config(text="Time: 0s")
         self.selected = []
-        self.clear_highlights()  # Clear highlights khi bắt đầu game mới
-        self.background_revealed = 0  # Reset background revealed
+        self.clear_highlights()
+        self.clear_simulation_highlights()
+        self.background_revealed = 0
         self.board.new_board()
         self.algorithms.board = self.board.board
+        self.algorithms.reset_simulation()
 
+        # Vẽ lại bảng
         self.ui.canvas.delete("all")
         w, h = self.cols * self.cell_size, self.rows * self.cell_size
         for r in range(self.rows + 1):
@@ -113,13 +121,7 @@ class PikachuGame:
                 img_id = self.ui.canvas.create_image(x, y, image=icon)
                 self.image_ids[(r, c)] = img_id
 
-        # Reset background overlay
-        if hasattr(self.ui, 'background_overlay'):
-            self.ui.background_overlay.itemconfig(
-                self.ui.overlay_rect,
-                fill="#FFFFFF"
-            )
-
+        self.update_background_overlay()
         self.start_timer()
 
     def stop_game(self):
@@ -281,6 +283,11 @@ class PikachuGame:
         )
 
     def get_path(self, start, goal, algo):
+        """Lấy đường đi - dùng phương thức thông thường (không simulation) khi người dùng chơi"""
+        # Tạm thời tắt simulation mode để tìm đường đi nhanh
+        temp_simulation_mode = self.algorithms.simulation_mode
+        self.algorithms.simulation_mode = False
+
         if algo == "DFS":
             path = self.algorithms.dfs(start, goal)
         elif algo == "BFS":
@@ -290,9 +297,11 @@ class PikachuGame:
         else:
             path = self.algorithms.astar(start, goal)
 
-        # Kiểm tra giới hạn đường đi (mở rộng để ăn được 2 cặp ngoài biên)
-        # Cho phép tối đa 6 điểm = 5 đường thẳng (4 góc rẽ) để có thể đi qua biên
-        if path and len(path) > 6:  # 6 điểm = 5 đường thẳng
+        # Khôi phục simulation mode
+        self.algorithms.simulation_mode = temp_simulation_mode
+
+        # Kiểm tra giới hạn đường đi
+        if path and len(path) > 6:
             return None
 
         # Lưu thống kê thuật toán
@@ -382,8 +391,146 @@ class PikachuGame:
             return
         if self.ui.mode_var.get() != "Auto":
             return
+
         self.auto_running = True
-        self.auto_play()
+        self.algorithms.simulation_mode = True  # Bật chế độ simulation
+        self.simulate_auto_step()  # Bắt đầu simulation tự động
+
+    def simulate_auto_step(self):
+        """Thực hiện một bước simulation"""
+        if self.game_paused or not self.auto_running:
+            return
+
+        step = self.algorithms.simulate_step()
+        if step:
+            action, pos, path, turns = step
+
+            # Hiển thị thông tin debug
+            print(f"Simulation step: {action}, pos: {pos}, path length: {len(path) if path else 0}, turns: {turns}")
+
+            if action == "visit":
+                # Tô sáng ô được thăm (màu vàng)
+                if pos:
+                    r, c = pos
+                    self.highlight_visited_cell(r, c)
+
+            elif action == "expand":
+                # Vẽ đường đi tạm thời
+                if path and len(path) > 1:
+                    self.draw_temporary_path(path)
+
+            elif action == "goal":
+                # Tìm thấy đường đi, xóa cặp
+                if path and len(path) >= 2:
+                    r1, c1 = path[0]
+                    r2, c2 = path[-1]
+                    # Hiển thị đường đi cuối cùng
+                    self.draw_final_path(path)
+                    self.root.after(1000, lambda: self.remove_pair_and_check(r1, c1, r2, c2, auto=True))
+                    return
+
+            elif action == "none":
+                # Không tìm thấy đường đi
+                self.show_no_path_message()
+                self.root.after(1500, self.continue_auto_play)
+                return
+
+            # Tiếp tục với bước tiếp theo sau delay
+            delay = 300  # 300ms giữa các bước
+            self.root.after(delay, self.simulate_auto_step)
+        else:
+            # Simulation kết thúc
+            self.algorithms.reset_simulation()
+            self.clear_highlights()
+            self.clear_simulation_highlights()
+            self.root.after(500, self.continue_auto_play)
+
+    def show_no_path_message(self):
+        """Hiển thị thông báo không tìm thấy đường đi"""
+        message_id = self.ui.canvas.create_text(
+            self.cols * self.cell_size // 2,
+            self.rows * self.cell_size // 2,
+            text="No Path Found!",
+            fill="#E74C3C",
+            font=("Arial", 16, "bold")
+        )
+        self.root.after(1500, lambda: self.ui.canvas.delete(message_id))
+
+    def draw_final_path(self, path):
+        """Vẽ đường đi cuối cùng tìm thấy"""
+        coords = []
+        for r, c in path:
+            x = c * self.cell_size + self.cell_size // 2
+            y = r * self.cell_size + self.cell_size // 2
+            coords.extend([x, y])
+
+        if len(coords) >= 4:
+            line = self.ui.canvas.create_line(
+                *coords,
+                fill="#27AE60",  # Màu xanh lá
+                width=4,
+                capstyle="round"
+            )
+            # Giữ đường đi cuối cùng cho đến khi xóa cặp
+            self.simulation_highlights.append(line)
+
+    def highlight_visited_cell(self, r, c):
+        """Tô sáng ô đang được thăm trong simulation (màu vàng)"""
+        x1 = c * self.cell_size + 5
+        y1 = r * self.cell_size + 5
+        x2 = (c + 1) * self.cell_size - 5
+        y2 = (r + 1) * self.cell_size - 5
+
+        highlight_id = self.ui.canvas.create_rectangle(
+            x1, y1, x2, y2,
+            fill="#FFD700",  # Màu vàng
+            outline="#FFA500",
+            width=2,
+            stipple="gray50"
+        )
+        # Tự động xóa sau 200ms
+        self.root.after(200, lambda: self.ui.canvas.delete(highlight_id))
+
+    def draw_temporary_path(self, path):
+        """Vẽ đường đi tạm thời trong simulation"""
+        coords = []
+        for r, c in path:
+            x = c * self.cell_size + self.cell_size // 2
+            y = r * self.cell_size + self.cell_size // 2
+            coords.extend([x, y])
+
+        if len(coords) >= 4:
+            line = self.ui.canvas.create_line(
+                *coords,
+                fill="#3498DB",  # Màu xanh dương
+                width=3,
+                dash=(4, 2),
+                capstyle="round"
+            )
+            # Tự động xóa sau 200ms
+            self.root.after(200, lambda: self.ui.canvas.delete(line))
+
+    def continue_auto_play(self):
+        """Tiếp tục auto play sau khi simulation kết thúc"""
+        if not self.auto_running:
+            return
+
+        algo = self.ui.algo_var.get()
+        pair = self.find_pair(algo)
+        if pair:
+            (r1, c1), (r2, c2), path = pair
+            # Bắt đầu simulation cho cặp mới
+            self.algorithms.start_simulation((r1, c1), (r2, c2), algo)
+            self.simulate_auto_step()
+        else:
+            # Không tìm thấy cặp, reshuffle hoặc kết thúc game
+            if self.board.get_cells():
+                self.board.reshuffle_remaining()
+                self.redraw_remaining_icons()
+                self.algorithms.board = self.board.board
+                self.root.after(1000, self.continue_auto_play)
+            else:
+                self.win_game()
 
     def auto_play(self):
         if self.game_paused or not self.auto_running:
@@ -424,7 +571,9 @@ class PikachuGame:
     def remove_pair_and_check(self, r1, c1, r2, c2, auto=False):
         self.board.remove_pair(r1, c1, r2, c2)
 
-        # Kiểm tra và xóa image_ids nếu tồn tại
+        # Clear simulation highlights
+        self.clear_simulation_highlights()
+
         if (r1, c1) in self.image_ids:
             self.ui.canvas.delete(self.image_ids[(r1, c1)])
             del self.image_ids[(r1, c1)]
@@ -435,16 +584,15 @@ class PikachuGame:
         self.moves += 1
         self.ui.moves_label.config(text=f"Moves: {self.moves}")
         self.selected = []
-        self.clear_highlights()  # Clear highlights sau khi xóa cặp
+        self.clear_highlights()
 
-        # Tăng số ô đã được xóa và cập nhật background overlay
         self.background_revealed += 2
         self.update_background_overlay()
 
         if not self.board.get_cells():
             self.win_game()
         elif auto:
-            self.root.after(400, self.auto_play)
+            self.root.after(400, self.continue_auto_play)
 
     def skip_current_pair(self):
         """Bỏ qua cặp hiện tại và tìm cặp khác (tua nhanh khi auto play)"""
@@ -504,26 +652,34 @@ class PikachuGame:
         # Bỏ qua sound và animation, xóa cặp ngay lập tức
         self.remove_pair_and_check_fast(r1, c1, r2, c2, auto=True)
 
-    def remove_pair_and_check(self, r1, c1, r2, c2, auto=False):
+    def remove_pair_and_check_fast(self, r1, c1, r2, c2, auto=False):
+        """Xóa cặp nhanh không có animation"""
         self.board.remove_pair(r1, c1, r2, c2)
+
+        # Kiểm tra và xóa image_ids nếu tồn tại
         if (r1, c1) in self.image_ids:
             self.ui.canvas.delete(self.image_ids[(r1, c1)])
             del self.image_ids[(r1, c1)]
         if (r2, c2) in self.image_ids:
             self.ui.canvas.delete(self.image_ids[(r2, c2)])
             del self.image_ids[(r2, c2)]
-        self.play_sound("eat")
+
+        # Bỏ qua sound
+        # self.play_sound("eat")
         self.moves += 1
         self.ui.moves_label.config(text=f"Moves: {self.moves}")
         self.selected = []
         self.clear_highlights()
+
+        # Tăng số ô đã được xóa và cập nhật background overlay
         self.background_revealed += 2
         self.update_background_overlay()
+
         if not self.board.get_cells():
             self.win_game()
         elif auto:
-            self.root.after(400, self.auto_play)
-        self.bg_canvas.tag_raise(self.ui.moves_label_window)  # Đảm bảo luôn trên cùng
+            # Tiếp tục auto play ngay lập tức
+            self.auto_play_fast()
 
     def win_game(self):
         self.stop_timer()

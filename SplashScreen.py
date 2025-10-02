@@ -54,12 +54,6 @@ class ModernButton(tk.Canvas):
             self.radius, fill=current_color, outline=""
         )
 
-        # Subtle border highlight (commented out as per your preference)
-        # self.create_rounded_rect(
-        #     0, y_offset, self.width, self.height + y_offset,
-        #     self.radius, outline="#ffffff", width=1
-        # )
-
         # Text
         self.create_text(
             self.width // 2, (self.height // 2) + y_offset,
