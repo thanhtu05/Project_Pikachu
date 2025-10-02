@@ -48,7 +48,7 @@ class GameUI:
             self.bg_canvas,
             text="Moves: 0",
             fg="#E74C3C",
-            bg="#FFFFFF",  # chọn màu nền thật
+            bg="#FFFFFF",
             font=("Arial", 12, "bold")
         )
         self.moves_label_window = self.bg_canvas.create_window(100, 20, window=self.moves_label, anchor="nw")
@@ -69,7 +69,7 @@ class GameUI:
         self.sound_var = tk.BooleanVar(value=True)
         style = ttk.Style()
         style.configure("MyCheck.TCheckbutton",
-                        background="#FFFFFF",  # nền
+                        background="#FFFFFF",
                         foreground="#2C3E50")
         self.sound_toggle = ttk.Checkbutton(
             self.bg_canvas,
@@ -90,7 +90,7 @@ class GameUI:
             state="readonly",
             width=10
         )
-        self.mode_menu_window = self.bg_canvas.create_window(450, 20, window=self.mode_menu, anchor="nw")
+        self.mode_menu_window = self.bg_canvas.create_window(470, 20, window=self.mode_menu, anchor="nw")
 
         # Algorithm selection
         self.algo_var = tk.StringVar(value="DFS")
@@ -113,6 +113,13 @@ class GameUI:
             "cursor": "hand2"
         }
 
+        # Tính toán vị trí button cách đều nhau với padding hợp lý
+        button_count = 5
+        button_width = 12 * 8 + 4  # ~100px (12 ký tự * 8px + padding 4px)
+        total_available_width = 1000 - 200  # Trừ 200px cho padding trái/phải (100px mỗi bên)
+        button_spacing = (total_available_width - (button_count * button_width)) // (button_count + 1)
+        start_x = 100  # Bắt đầu từ 100px để có padding trái
+
         self.new_btn = tk.Button(
             self.bg_canvas,
             text="🆕 New Game",
@@ -122,7 +129,7 @@ class GameUI:
             activeforeground="white",
             **button_style
         )
-        self.new_btn_window = self.bg_canvas.create_window(100, 60, window=self.new_btn, anchor="nw")
+        self.new_btn_window = self.bg_canvas.create_window(start_x, 60, window=self.new_btn, anchor="nw")
 
         self.auto_btn = tk.Button(
             self.bg_canvas,
@@ -133,7 +140,7 @@ class GameUI:
             activeforeground="white",
             **button_style
         )
-        self.auto_btn_window = self.bg_canvas.create_window(220, 60, window=self.auto_btn, anchor="nw")
+        self.auto_btn_window = self.bg_canvas.create_window(start_x + button_spacing + button_width, 60, window=self.auto_btn, anchor="nw")
 
         self.stop_btn = tk.Button(
             self.bg_canvas,
@@ -145,7 +152,7 @@ class GameUI:
             command=self.pause_game,
             **button_style
         )
-        self.stop_btn_window = self.bg_canvas.create_window(340, 60, window=self.stop_btn, anchor="nw")
+        self.stop_btn_window = self.bg_canvas.create_window(start_x + 2 * (button_spacing + button_width), 60, window=self.stop_btn, anchor="nw")
 
         self.continue_btn = tk.Button(
             self.bg_canvas,
@@ -157,7 +164,7 @@ class GameUI:
             command=self.resume_game,
             **button_style
         )
-        self.continue_btn_window = self.bg_canvas.create_window(460, 60, window=self.continue_btn, anchor="nw")
+        self.continue_btn_window = self.bg_canvas.create_window(start_x + 3 * (button_spacing + button_width), 60, window=self.continue_btn, anchor="nw")
 
         self.history_btn = tk.Button(
             self.bg_canvas,
@@ -168,30 +175,7 @@ class GameUI:
             activeforeground="white",
             **button_style
         )
-        self.history_btn_window = self.bg_canvas.create_window(580, 60, window=self.history_btn, anchor="nw")
-
-        self.skip_btn = tk.Button(
-            self.bg_canvas,
-            text="⏭️ Skip",
-            bg="#E67E22",
-            fg="white",
-            activebackground="#D35400",
-            activeforeground="white",
-            **button_style
-        )
-        self.skip_btn_window = self.bg_canvas.create_window(700, 60, window=self.skip_btn, anchor="nw")
-
-        # Thêm nút tua nhanh
-        self.fast_forward_btn = tk.Button(
-            self.bg_canvas,
-            text="⏩ Fast",
-            bg="#8E44AD",
-            fg="white",
-            activebackground="#7D3C98",
-            activeforeground="white",
-            **button_style
-        )
-        self.fast_forward_btn_window = self.bg_canvas.create_window(820, 60, window=self.fast_forward_btn, anchor="nw")
+        self.history_btn_window = self.bg_canvas.create_window(start_x + 4 * (button_spacing + button_width), 60, window=self.history_btn, anchor="nw")
 
         # --- Bàn cờ ---
         w, h = self.cols * self.cell_size, self.rows * self.cell_size
@@ -220,8 +204,6 @@ class GameUI:
         self.bg_canvas.tag_raise(self.stop_btn_window)
         self.bg_canvas.tag_raise(self.continue_btn_window)
         self.bg_canvas.tag_raise(self.history_btn_window)
-        self.bg_canvas.tag_raise(self.skip_btn_window)
-        self.bg_canvas.tag_raise(self.fast_forward_btn_window)
         self.bg_canvas.tag_raise(self.canvas_window)
 
         # Vẽ lưới

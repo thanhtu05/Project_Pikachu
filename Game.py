@@ -28,7 +28,6 @@ class PikachuGame:
         self.history_file = "history.json"
         self.highlighted_cells = []  # Danh sách các ô đang được highlight
         self.background_revealed = 0  # Số ô đã được xóa (để lộ background)
-        self.fast_mode = False  # Chế độ tua nhanh
 
         self.simulation_highlights = []  # Lưu các highlight trong simulation
 
@@ -51,8 +50,8 @@ class PikachuGame:
         self.ui.stop_btn.config(command=self.stop_game)
         self.ui.continue_btn.config(command=self.continue_game)
         self.ui.history_btn.config(command=self.show_history)
-        self.ui.skip_btn.config(command=self.skip_current_pair)
-        self.ui.fast_forward_btn.config(command=self.toggle_fast_mode)
+        # self.ui.skip_btn.config(command=self.skip_current_pair)
+        # self.ui.fast_forward_btn.config(command=self.toggle_fast_mode)
         self.ui.canvas.bind("<Button-1>", self.on_canvas_click)
         self.ui.sound_var.trace("w", self.on_sound_toggle)
 
@@ -300,9 +299,6 @@ class PikachuGame:
         # Khôi phục simulation mode
         self.algorithms.simulation_mode = temp_simulation_mode
 
-        # Kiểm tra giới hạn đường đi
-        if path and len(path) > 6:
-            return None
 
         # Lưu thống kê thuật toán
         self.current_algorithm_stats = self.algorithms.stats.copy()
@@ -536,10 +532,6 @@ class PikachuGame:
         if self.game_paused or not self.auto_running:
             return
 
-        # Nếu đang ở chế độ nhanh, sử dụng auto_play_fast
-        if self.fast_mode:
-            self.auto_play_fast()
-            return
 
         algo = self.ui.algo_var.get()
         pair = self.find_pair(algo)
@@ -593,93 +585,6 @@ class PikachuGame:
             self.win_game()
         elif auto:
             self.root.after(400, self.continue_auto_play)
-
-    def skip_current_pair(self):
-        """Bỏ qua cặp hiện tại và tìm cặp khác (tua nhanh khi auto play)"""
-        if self.game_paused:
-            return
-
-        # Clear selection hiện tại
-        self.selected = []
-        self.clear_highlights()
-
-        # Nếu đang ở chế độ Auto, tìm cặp tiếp theo ngay lập tức
-        if self.ui.mode_var.get() == "Auto" and self.auto_running:
-            # Tua nhanh: bỏ qua tất cả delay và animation
-            self.auto_play_fast()
-        else:
-            # Nếu ở chế độ Manual, chỉ clear selection
-            pass
-
-    def toggle_fast_mode(self):
-        """Bật/tắt chế độ tua nhanh"""
-        self.fast_mode = not self.fast_mode
-        if self.fast_mode:
-            self.ui.fast_forward_btn.config(text="⏩ Fast ON", bg="#27AE60")
-            # Nếu đang auto play, chuyển sang chế độ nhanh
-            if self.ui.mode_var.get() == "Auto" and self.auto_running:
-                self.auto_play_fast()
-        else:
-            self.ui.fast_forward_btn.config(text="⏩ Fast", bg="#8E44AD")
-
-    def auto_play_fast(self):
-        """Auto play với tốc độ nhanh (bỏ qua animation)"""
-        if self.game_paused or not self.auto_running:
-            return
-        algo = self.ui.algo_var.get()
-        pair = self.find_pair(algo)
-        if not pair:
-            # Không còn cặp hợp lệ, nếu còn ô -> reshuffle, nếu không -> win
-            if self.board.get_cells():
-                self.board.reshuffle_remaining()
-                # vẽ lại toàn bộ các icon còn lại sau reshuffle
-                for (r, c), img_id in list(self.image_ids.items()):
-                    if self.board.board[r][c] == -1:
-                        self.ui.canvas.delete(img_id)
-                        del self.image_ids[(r, c)]
-                    else:
-                        x = c * self.cell_size + self.cell_size // 2
-                        y = r * self.cell_size + self.cell_size // 2
-                        icon = self.icons[self.board.board[r][c]]
-                        self.ui.canvas.itemconfig(img_id, image=icon)
-                self.algorithms.board = self.board.board
-                self.auto_play_fast()  # Tiếp tục với tốc độ nhanh
-                return
-            else:
-                self.win_game()
-                return
-        (r1, c1), (r2, c2), path = pair
-        # Bỏ qua sound và animation, xóa cặp ngay lập tức
-        self.remove_pair_and_check_fast(r1, c1, r2, c2, auto=True)
-
-    def remove_pair_and_check_fast(self, r1, c1, r2, c2, auto=False):
-        """Xóa cặp nhanh không có animation"""
-        self.board.remove_pair(r1, c1, r2, c2)
-
-        # Kiểm tra và xóa image_ids nếu tồn tại
-        if (r1, c1) in self.image_ids:
-            self.ui.canvas.delete(self.image_ids[(r1, c1)])
-            del self.image_ids[(r1, c1)]
-        if (r2, c2) in self.image_ids:
-            self.ui.canvas.delete(self.image_ids[(r2, c2)])
-            del self.image_ids[(r2, c2)]
-
-        # Bỏ qua sound
-        # self.play_sound("eat")
-        self.moves += 1
-        self.ui.moves_label.config(text=f"Moves: {self.moves}")
-        self.selected = []
-        self.clear_highlights()
-
-        # Tăng số ô đã được xóa và cập nhật background overlay
-        self.background_revealed += 2
-        self.update_background_overlay()
-
-        if not self.board.get_cells():
-            self.win_game()
-        elif auto:
-            # Tiếp tục auto play ngay lập tức
-            self.auto_play_fast()
 
     def win_game(self):
         self.stop_timer()

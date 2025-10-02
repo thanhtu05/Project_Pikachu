@@ -1,70 +1,50 @@
 [
   {
-    "rows": 8,
-    "cols": 8,
-    "algo": "BFS",
+    "rows": 10,
+    "cols": 12,
+    "algo": "A*",
     "mode": "Auto",
-    "moves": 32,
-    "time": 36
+    "moves": 60,
+    "time": 267,
+    "steps": 1,
+    "visited": 1,
+    "generated": 2,
+    "time_ms": 0.0
   },
   {
-    "rows": 8,
-    "cols": 8,
-    "algo": "BFS",
+    "rows": 10,
+    "cols": 12,
+    "algo": "A*",
     "mode": "Auto",
-    "moves": 32,
-    "time": 37,
-    "steps": 10,
-    "visited": 60,
-    "generated": 199,
+    "moves": 60,
+    "time": 267,
+    "steps": 1,
+    "visited": 1,
+    "generated": 2,
     "time_ms": 0.0
   },
   {
     "rows": 8,
     "cols": 12,
     "algo": "DFS",
-    "mode": "Auto",
+    "mode": "Manual",
     "moves": 48,
-    "time": 0,
-    "steps": 19,
-    "visited": 90,
-    "generated": 145,
-    "time_ms": 5.6
+    "time": 411,
+    "steps": 24,
+    "visited": 35,
+    "generated": 46,
+    "time_ms": 1.0
   },
   {
-    "rows": 8,
+    "rows": 10,
     "cols": 12,
     "algo": "BFS",
-    "mode": "Auto",
-    "moves": 48,
-    "time": 0,
+    "mode": "Manual",
+    "moves": 60,
+    "time": 221,
     "steps": 2,
-    "visited": 7,
-    "generated": 8,
-    "time_ms": 0.0
-  },
-  {
-    "rows": 8,
-    "cols": 12,
-    "algo": "BFS",
-    "mode": "Auto",
-    "moves": 49,
-    "time": 0,
-    "steps": 2,
-    "visited": 7,
-    "generated": 8,
-    "time_ms": 0.0
-  },
-  {
-    "rows": 8,
-    "cols": 8,
-    "algo": "A*",
-    "mode": "Auto",
-    "moves": 32,
-    "time": 0,
-    "steps": 3,
     "visited": 3,
     "generated": 4,
-    "time_ms": 0.1
+    "time_ms": 0.0
   }
 ]
