@@ -50,13 +50,23 @@ class PikachuGame:
         self.ui.stop_btn.config(command=self.stop_game)
         self.ui.continue_btn.config(command=self.continue_game)
         self.ui.history_btn.config(command=self.show_history)
-        # self.ui.skip_btn.config(command=self.skip_current_pair)
-        # self.ui.fast_forward_btn.config(command=self.toggle_fast_mode)
         self.ui.canvas.bind("<Button-1>", self.on_canvas_click)
         self.ui.sound_var.trace("w", self.on_sound_toggle)
 
         self.image_ids = {}
         self.new_game()
+
+    def go_to_splash_screen(self):
+        """Quay về giao diện SplashScreen và dừng trò chơi hiện tại."""
+        self.stop_timer()
+        self.auto_running = False
+        self.game_paused = True
+        self.root.destroy()  # Đóng cửa sổ hiện tại
+        import SplashScreen
+        splash_root = tk.Tk()  # Tạo root mới cho SplashScreen
+        splash_screen = SplashScreen.ModernSplashScreen(splash_root)
+        splash_screen.show()  # Hiển thị SplashScreen
+        splash_root.mainloop()
 
     def clear_simulation_highlights(self):
         """Xóa tất cả highlight của simulation"""

@@ -150,10 +150,8 @@ class ModernSplashScreen:
             fill=(255, 255, 255, alpha)
         )
 
-        # Convert sang PhotoImage để Tkinter hiểu
         frame_img = ImageTk.PhotoImage(img)
 
-        # Lưu reference để không bị xoá bởi GC
         if not hasattr(self, "_frame_cache"):
             self._frame_cache = []
         self._frame_cache.append(frame_img)
@@ -259,6 +257,19 @@ class ModernSplashScreen:
         game_root = tk.Tk()
         game = PikachuGame(game_root, rows, cols)
         game_root.mainloop()
+
+    def on_game_close(self, game_root):
+        """Xử lý khi cửa sổ game bị đóng, quay về SplashScreen."""
+        game_root.destroy()
+        self.root.deiconify()  # Hiển thị lại SplashScreen
+
+    def show(self):
+        """Hiển thị SplashScreen."""
+        self.root.deiconify()
+
+    def close(self):
+        """Ẩn SplashScreen."""
+        self.root.withdraw()
 
 if __name__ == "__main__":
     root = tk.Tk()

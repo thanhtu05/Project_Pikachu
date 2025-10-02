@@ -23,7 +23,6 @@ class GameUI:
         self.bg_canvas.create_image(0, 0, image=self.bg_photo, anchor="nw")
 
         # --- Overlay (dùng để làm mờ nền khi Stop) ---
-        # Tạm thời tắt overlay để bàn cờ hiển thị bình thường
         self.background_overlay = None
         self.overlay_rect = None
 
@@ -177,6 +176,26 @@ class GameUI:
         )
         self.history_btn_window = self.bg_canvas.create_window(start_x + 4 * (button_spacing + button_width), 60, window=self.history_btn, anchor="nw")
 
+        # Thêm nút Home với ModernButton
+        from SplashScreen import ModernButton  # Import ModernButton
+        self.home_btn = ModernButton(
+            self.bg_canvas,
+            text="🏠 Home",
+            command=self.game.go_to_splash_screen,  # Giả định game có phương thức go_to_splash_screen
+            width=120,
+            height=40,
+            bg_color="#EF4444",  # Màu đỏ tương tự nút HARD
+            hover_color="#DC2626",  # Màu hover đậm hơn
+            text_color="white",
+            font=("Segoe UI", 12, "bold"),
+            radius=20
+        )
+        self.home_btn_window = self.bg_canvas.create_window(
+            start_x + 5 * (button_spacing + button_width), 60,  # Vị trí cuối cùng
+            window=self.home_btn,
+            anchor="nw"
+        )
+
         # --- Bàn cờ ---
         w, h = self.cols * self.cell_size, self.rows * self.cell_size
         self.canvas = tk.Canvas(
@@ -237,6 +256,7 @@ class GameUI:
             self.background_overlay.lower()
             self.background_overlay.itemconfig(self.overlay_rect, fill="")
             self.background_overlay.itemconfig(self.overlay_rect, stipple="")
+
 
 if __name__ == "__main__":
     root = tk.Tk()
