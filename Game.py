@@ -8,6 +8,7 @@ from PIL import Image, ImageTk
 import pygame
 import json
 import os
+from WinScreen import WinScreen
 
 
 class PikachuGame:
@@ -28,6 +29,7 @@ class PikachuGame:
         self.history_file = "history.json"
         self.highlighted_cells = []  # Danh sách các ô đang được highlight
         self.background_revealed = 0  # Số ô đã được xóa (để lộ background)
+        self.initial_board = None
 
         self.simulation_highlights = []  # Lưu các highlight trong simulation
 
@@ -44,7 +46,7 @@ class PikachuGame:
         self.ui = GameUI(root, self.rows, self.cols, self.cell_size, self)  # Sử dụng giao diện mới
         self.root.geometry("1000x1000")  # Đặt kích thước cửa sổ
         self.algorithms = SearchAlgorithms(self.board.board, self.rows, self.cols)
-
+        self.bg_canvas = self.ui.canvas
         self.ui.new_btn.config(command=self.new_game)
         self.ui.auto_btn.config(command=self.start_auto)
         self.ui.stop_btn.config(command=self.stop_game)
@@ -55,6 +57,7 @@ class PikachuGame:
 
         self.image_ids = {}
         self.new_game()
+        self.win_screen = None
 
     def go_to_splash_screen(self):
         """Quay về giao diện SplashScreen và dừng trò chơi hiện tại."""
@@ -97,8 +100,7 @@ class PikachuGame:
             icons[i] = ImageTk.PhotoImage(img)
         return icons
 
-    def new_game(self):
-        """Khởi tạo game mới - reset cả simulation"""
+    def new_game(self, restore_initial=False):
         self.auto_running = False
         self.game_paused = False
         self.moves = 0
@@ -109,11 +111,15 @@ class PikachuGame:
         self.clear_highlights()
         self.clear_simulation_highlights()
         self.background_revealed = 0
-        self.board.new_board()
+        if not restore_initial:
+            self.board.new_board()  # Tạo bảng mới ngẫu nhiên
+            if self.initial_board is None:  # Lưu trạng thái ban đầu chỉ lần đầu
+                self.initial_board = [row[:] for row in self.board.board]
+        else:
+            self.board.restore_initial()  # Khôi phục bảng ban đầu
         self.algorithms.board = self.board.board
         self.algorithms.reset_simulation()
 
-        # Vẽ lại bảng
         self.ui.canvas.delete("all")
         w, h = self.cols * self.cell_size, self.rows * self.cell_size
         for r in range(self.rows + 1):
@@ -600,7 +606,9 @@ class PikachuGame:
         self.stop_timer()
         self.play_sound("win")
         self.save_history_entry()
-        messagebox.showinfo("Chiến Thắng!", f"Bạn đã thắng!\nSố moves: {self.moves}\nThời gian: {self.time_elapsed}s")
+        # Tạo và hiển thị WinScreen
+        self.win_screen = WinScreen(self.root, self, self.moves, self.time_elapsed)
+        self.win_screen.show()
 
     # ---------- History ----------
     def load_history(self):
