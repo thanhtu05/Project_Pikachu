@@ -111,13 +111,11 @@ class GameUI:
             "bd": 2,
             "cursor": "hand2"
         }
-
-        # Tính toán vị trí button cách đều nhau với padding hợp lý
         button_count = 5
-        button_width = 12 * 8 + 4  # ~100px (12 ký tự * 8px + padding 4px)
-        total_available_width = 1000 - 200  # Trừ 200px cho padding trái/phải (100px mỗi bên)
+        button_width = 12 * 8 + 4
+        total_available_width = 1000 - 200
         button_spacing = (total_available_width - (button_count * button_width)) // (button_count + 1)
-        start_x = 100  # Bắt đầu từ 100px để có padding trái
+        start_x = 100
 
         self.new_btn = tk.Button(
             self.bg_canvas,
@@ -178,7 +176,6 @@ class GameUI:
 
         #nút Home
         self.home_btn = tk.Button(
-
             self.bg_canvas,
             text="🏠 Home",
             bg="#27AE60",
@@ -187,6 +184,7 @@ class GameUI:
             activeforeground="white",
             **button_style
         )
+
         self.home_btn_window = self.bg_canvas.create_window(
             start_x + 5 * (button_spacing + button_width), 60,  # Vị trí cuối cùng
             window=self.home_btn,

@@ -142,5 +142,89 @@
     "visited": 53,
     "generated": 60,
     "time_ms": 2.8
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "DFS",
+    "mode": "Manual",
+    "cost": 188,
+    "time": 93,
+    "steps": 14,
+    "visited": 56,
+    "generated": 58,
+    "time_ms": 2.2
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "DFS",
+    "mode": "Manual",
+    "cost": 182,
+    "time": 92,
+    "steps": 20,
+    "visited": 62,
+    "generated": 64,
+    "time_ms": 1.3
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "A*",
+    "mode": "Auto",
+    "cost": 142,
+    "time": 343,
+    "steps": 6,
+    "visited": 14,
+    "generated": 22,
+    "time_ms": 0.4
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "DFS",
+    "mode": "Manual",
+    "cost": 182,
+    "time": 82,
+    "steps": 13,
+    "visited": 13,
+    "generated": 20,
+    "time_ms": 0.6
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "DFS",
+    "mode": "Manual",
+    "cost": 198,
+    "time": 751,
+    "steps": 19,
+    "visited": 55,
+    "generated": 67,
+    "time_ms": 2.0
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "DFS",
+    "mode": "Manual",
+    "cost": 194,
+    "time": 626,
+    "steps": 14,
+    "visited": 56,
+    "generated": 58,
+    "time_ms": 1.2
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "DFS",
+    "mode": "Manual",
+    "cost": 174,
+    "time": 96,
+    "steps": 7,
+    "visited": 7,
+    "generated": 9,
+    "time_ms": 0.1
   }
 ]
