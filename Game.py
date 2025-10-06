@@ -9,6 +9,7 @@ import pygame
 import json
 import os
 from WinScreen import WinScreen
+import hashlib
 
 
 class PikachuGame:
@@ -26,7 +27,9 @@ class PikachuGame:
         self.auto_running = False
         self.selected = []
         self.sound_enabled = True
-        self.history_file = "history.json"
+        # Use an absolute path relative to this file so history is found even if the app is
+        # started with a different working directory.
+        self.history_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history.json")
         self.highlighted_cells = []  # Danh sách các ô đang được highlight
         self.background_revealed = 0
         self.initial_board = None   #lưu bảng ban đầu
@@ -47,9 +50,20 @@ class PikachuGame:
         self.ui = GameUI(root, self.rows, self.cols, self.cell_size, self)
         self.root.geometry("1000x1000")
         self.algorithms = SearchAlgorithms(self.board.board, self.rows, self.cols)
+        # Enable debug diagnostics to print neighbor-generation stats (set to False to disable)
+        try:
+            self.algorithms.debug = True
+            print("[DEBUG] SearchAlgorithms debug enabled")
+        except Exception:
+            pass
         self.bg_canvas = self.ui.canvas
         self.ui.new_btn.config(command=self.new_game)
         self.ui.auto_btn.config(command=self.start_auto)
+        # Connect skip button (if present)
+        try:
+            self.ui.skip_btn.config(command=self.skip_simulation)
+        except Exception:
+            pass
         self.ui.stop_btn.config(command=self.stop_game)
         self.ui.continue_btn.config(command=self.continue_game)
         self.ui.history_btn.config(command=self.show_history)
@@ -115,6 +129,12 @@ class PikachuGame:
         self.board.new_board()
         self.algorithms.board = self.board.board
         self.algorithms.reset_simulation()
+
+        # Disable skip by default when starting a new game
+        try:
+            self.set_skip_enabled(False)
+        except Exception:
+            pass
         self.background_revealed = 0
 
         if restore_initial and hasattr(self, 'initial_board'):
@@ -151,6 +171,11 @@ class PikachuGame:
         self.game_paused = True
         self.stop_timer()
         self.auto_running = False
+        # disable skip when stopping
+        try:
+            self.set_skip_enabled(False)
+        except Exception:
+            pass
 
     def continue_game(self):
         if self.game_paused:
@@ -304,6 +329,33 @@ class PikachuGame:
             self.ui.overlay_rect,
             fill=color
         )
+        
+        # Thêm hiệu ứng fade mượt mà hơn
+        if reveal_percentage > 0:
+            # Tạo hiệu ứng gradient fade
+            try:
+                # Xóa overlay cũ nếu có
+                for item in self.ui.background_overlay.find_all():
+                    if item != self.ui.overlay_rect:
+                        self.ui.background_overlay.delete(item)
+                
+                # Tạo gradient fade từ trong ra ngoài
+                center_x, center_y = self.cols * self.cell_size // 2, self.rows * self.cell_size // 2
+                max_radius = max(self.cols * self.cell_size, self.rows * self.cell_size) // 2
+                
+                # Tạo các vòng tròn đồng tâm với độ trong suốt giảm dần
+                for i in range(10):
+                    radius = int(max_radius * (1 - reveal_percentage) * (i + 1) / 10)
+                    if radius > 0:
+                        alpha_val = int(alpha * (10 - i) / 10)
+                        color = f"#{alpha_val:02x}{alpha_val:02x}{alpha_val:02x}"
+                        self.ui.background_overlay.create_oval(
+                            center_x - radius, center_y - radius,
+                            center_x + radius, center_y + radius,
+                            fill=color, outline=""
+                        )
+            except Exception:
+                pass
 
     def get_path(self, start, goal, algo):
         """Lấy đường đi - dùng phương thức thông thường (không simulation) khi người dùng chơi"""
@@ -317,6 +369,10 @@ class PikachuGame:
             path = self.algorithms.bfs(start, goal)
         elif algo == "UCS":
             path = self.algorithms.ucs(start, goal)
+        elif algo == "A*":
+            path = self.algorithms.astar(start, goal)
+        elif algo == "HillClimb":
+            path = self.algorithms.hill_climb(start, goal)
         else:
             path = self.algorithms.astar(start, goal)
 
@@ -415,6 +471,11 @@ class PikachuGame:
         self.auto_running = True
         self.algorithms.simulation_mode = True  # Bật chế độ simulation
         self.simulate_auto_step()  # Bắt đầu simulation tự động
+        # enable skip while auto running
+        try:
+            self.set_skip_enabled(True)
+        except Exception:
+            pass
 
     def simulate_auto_step(self):
         """Thực hiện một bước simulation"""
@@ -459,7 +520,66 @@ class PikachuGame:
             self.algorithms.reset_simulation()
             self.clear_highlights()
             self.clear_simulation_highlights()
+            # disable skip when simulation ends
+            try:
+                self.set_skip_enabled(False)
+            except Exception:
+                pass
             self.root.after(500, self.continue_auto_play)
+
+    def set_skip_enabled(self, enabled: bool):
+        """Enable or disable the Skip button if available."""
+        try:
+            if hasattr(self.ui, 'skip_btn'):
+                self.ui.skip_btn.config(state='normal' if enabled else 'disabled')
+        except Exception:
+            pass
+
+    def skip_simulation(self):
+        """Skip forward: fast-forward the simulation to the next 'goal' step or end."""
+        # Fast-forward the entire simulation to completion (apply all goal removals)
+        # If simulation_mode is not enabled, enable it temporarily so simulate_step works.
+        was_sim = getattr(self.algorithms, 'simulation_mode', False)
+        self.algorithms.simulation_mode = True
+        try:
+            while True:
+                step = self.algorithms.simulate_step()
+                if not step:
+                    # simulation finished
+                    break
+                action, pos, path, turns = step
+                if action == 'visit' or action == 'expand':
+                    # ignore visualization steps while skipping
+                    continue
+                if action == 'goal':
+                    # Apply the goal removal immediately (no animation)
+                    if path and len(path) >= 2:
+                        r1, c1 = path[0]
+                        r2, c2 = path[-1]
+                        # remove pair and update state synchronously
+                        self.remove_pair_and_check(r1, c1, r2, c2, path, auto=False)
+                        # if board cleared, win_game() will have been called inside
+                        if not self.board.get_cells():
+                            break
+                elif action == 'none':
+                    # no path found for this pair, stop skipping
+                    break
+                # otherwise loop to next step
+        finally:
+            # restore previous simulation mode
+            self.algorithms.simulation_mode = was_sim
+            # reset the simulation internals and UI highlights
+            try:
+                self.algorithms.reset_simulation()
+            except Exception:
+                pass
+            self.clear_simulation_highlights()
+            self.clear_highlights()
+            # disable skip after finishing
+            try:
+                self.set_skip_enabled(False)
+            except Exception:
+                pass
 
     def show_no_path_message(self):
         """Hiển thị thông báo không tìm thấy đường đi"""
@@ -627,6 +747,31 @@ class PikachuGame:
             'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0
         })
 
+        # Compute a stable key for the initial board state to group restarts
+        try:
+            state_str = json.dumps(self.initial_board, sort_keys=True)
+        except Exception:
+            # Fallback if board not serializable for any reason
+            state_str = str(self.initial_board)
+        state_key = hashlib.md5(state_str.encode('utf-8')).hexdigest()
+
+        # Load existing history to determine state numeric id
+        history = self.load_history()
+        existing_states = {}
+        max_state_id = 0
+        for h in history:
+            sk = h.get('state_key')
+            sid = h.get('state', 0)
+            if sk and sid:
+                existing_states[sk] = sid
+                if sid > max_state_id:
+                    max_state_id = sid
+
+        if state_key in existing_states:
+            state_id = existing_states[state_key]
+        else:
+            state_id = max_state_id + 1 if max_state_id else 1
+
         entry = {
             "rows": self.rows,
             "cols": self.cols,
@@ -637,9 +782,10 @@ class PikachuGame:
             "steps": algo_stats.get('steps', 0),
             "visited": algo_stats.get('visited', 0),
             "generated": algo_stats.get('generated', 0),
-            "time_ms": algo_stats.get('time_ms', 0)
+            "time_ms": algo_stats.get('time_ms', 0),
+            "state_key": state_key,
+            "state": state_id
         }
-        history = self.load_history()
         history.append(entry)
         try:
             with open(self.history_file, "w", encoding="utf-8") as f:
@@ -688,15 +834,13 @@ class PikachuGame:
 
         # Tính toán thống kê
         total_games = len(history)
-        avg_moves = sum(h.get("moves", 0) for h in history) / max(total_games, 1)
         avg_time = sum(h.get("time", 0) for h in history) / max(total_games, 1)
         best_time = min((h.get("time", 999) for h in history), default=0)
         best_moves = min((h.get("moves", 999) for h in history), default=0)
 
-        # Tạo các thẻ thống kê
+        # Tạo các thẻ thống kê (đã loại bỏ Avg Moves theo yêu cầu)
         stats_data = [
             ("🎯 Total Games", f"{total_games}"),
-            ("⚡ Avg Moves", f"{avg_moves:.1f}"),
             ("⏱️ Avg Time", f"{avg_time:.1f}s"),
             ("🏆 Best Time", f"{best_time}s"),
             ("🎪 Best Moves", f"{best_moves}")
@@ -738,6 +882,10 @@ class PikachuGame:
         notebook.add(chart_frame, text="📈 Performance Charts")
 
         # Tạo biểu đồ thống kê
+        # Small debug label to show how many history entries were loaded and the file used
+        debug_label = tk.Label(header_frame, text=f"History file: {self.history_file} | Entries: {len(history)}",
+                       font=("Arial", 9), bg="#0f3460", fg="#ffffff")
+        debug_label.pack(side="right", padx=10)
         self.create_performance_charts(chart_frame, history)
 
         # Thanh công cụ với các nút lọc
@@ -804,13 +952,12 @@ class PikachuGame:
         # Tạo frame cho treeview và scrollbar
         tree_frame = tk.Frame(data_frame, bg="#16213e")
         tree_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-
-        cols = ("#", "Algorithm", "Mode", "Moves", "Time (s)", "Steps", "Visited", "Generated", "Time (ms)")
+        cols = ("#", "State", "Algorithm", "Mode", "Moves", "Time (s)", "Visited", "Generated")
         tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=12, style="Custom.Treeview")
 
         # Cấu hình cột với độ rộng phù hợp
-        column_widths = {"#": 40, "Algorithm": 80, "Mode": 60, "Moves": 60, "Time (s)": 70,
-                         "Steps": 60, "Visited": 70, "Generated": 80, "Time (ms)": 80}
+        column_widths = {"#": 40, "State": 60, "Algorithm": 80, "Mode": 60, "Moves": 60, "Time (s)": 70,
+                         "Visited": 70, "Generated": 80}
         for c in cols:
             tree.heading(c, text=c)
             tree.column(c, width=column_widths[c], anchor="center")
@@ -890,20 +1037,19 @@ class PikachuGame:
         for i, h in enumerate(reversed(history), 1):
             values = (
                 i,
+                h.get("state", "N/A"),
                 h.get("algo", "N/A"),
                 h.get("mode", "N/A"),
-                h.get("moves", 0),
+                h.get("cost", h.get("moves", 0)),
                 h.get("time", 0),
-                h.get("steps", 0),
                 h.get("visited", 0),
-                h.get("generated", 0),
-                f"{h.get('time_ms', 0):.1f}"
+                h.get("generated", 0)
             )
             tree.insert("", "end", values=values)
 
         # Nếu không có dữ liệu, hiển thị thông báo
         if not history:
-            tree.insert("", "end", values=("", "No data", "", "", "", "", "", "", ""))
+            tree.insert("", "end", values=("", "", "No data", "", "", "", "", "", "", ""))
 
     def filter_history(self, tree, history):
         """Lọc history theo thuật toán"""
@@ -966,8 +1112,7 @@ class PikachuGame:
 
             if filename:
                 with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                    fieldnames = ['Algorithm', 'Mode', 'Moves', 'Time (s)', 'Steps', 'Visited', 'Generated',
-                                  'Time (ms)']
+                    fieldnames = ['Algorithm', 'Mode', 'Moves', 'Time (s)', 'Visited', 'Generated']
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
                     writer.writeheader()
@@ -977,10 +1122,8 @@ class PikachuGame:
                             'Mode': h.get("mode", "N/A"),
                             'Moves': h.get("moves", 0),
                             'Time (s)': h.get("time", 0),
-                            'Steps': h.get("steps", 0),
                             'Visited': h.get("visited", 0),
-                            'Generated': h.get("generated", 0),
-                            'Time (ms)': h.get("time_ms", 0)
+                            'Generated': h.get("generated", 0)
                         })
 
                 messagebox.showinfo("Success", f"History exported to {filename}")
@@ -988,44 +1131,81 @@ class PikachuGame:
             messagebox.showerror("Error", f"Failed to export history: {str(e)}")
 
     def create_performance_charts(self, parent, history):
-        """Tạo biểu đồ thống kê hiệu suất"""
+        """Create grouped bar charts for average cost, time, and generated per algorithm."""
         if not history:
             no_data_label = tk.Label(parent, text="No data available for charts",
                                      font=("Arial", 14, "bold"), bg="#16213e", fg="#e94560")
             no_data_label.pack(expand=True)
             return
 
-        # Tạo canvas cho biểu đồ
-        chart_canvas = tk.Canvas(parent, bg="#1a1a2e", highlightthickness=0)
-        chart_canvas.pack(fill="both", expand=True, padx=10, pady=10)
-
-        # Tính toán dữ liệu cho biểu đồ
-        algo_stats = {}
+        # Aggregate and compute averages
+        algos = sorted({h.get('algo', 'Unknown') for h in history})
+        agg = {algo: {'cost': [], 'time': [], 'generated': []} for algo in algos}
         for h in history:
-            algo = h.get("algo", "Unknown")
-            if algo not in algo_stats:
-                algo_stats[algo] = {
-                    "count": 0, "total_moves": 0, "total_time": 0,
-                    "total_steps": 0, "total_visited": 0, "total_generated": 0
-                }
-            algo_stats[algo]["count"] += 1
-            algo_stats[algo]["total_moves"] += h.get("moves", 0)
-            algo_stats[algo]["total_time"] += h.get("time", 0)
-            algo_stats[algo]["total_steps"] += h.get("steps", 0)
-            algo_stats[algo]["total_visited"] += h.get("visited", 0)
-            algo_stats[algo]["total_generated"] += h.get("generated", 0)
+            algo = h.get('algo', 'Unknown')
+            cost_val = h.get('cost', h.get('moves', 0))
+            agg[algo]['cost'].append(cost_val)
+            agg[algo]['time'].append(h.get('time', 0))
+            agg[algo]['generated'].append(h.get('generated', 0))
 
-        # Vẽ biểu đồ cột cho số lần sử dụng thuật toán
-        self.draw_bar_chart(chart_canvas, algo_stats, "Algorithm Usage", "count", 50, 50, 300, 200)
+        avg = {}
+        for algo in algos:
+            avg[algo] = {
+                'cost': sum(agg[algo]['cost']) / max(len(agg[algo]['cost']), 1),
+                'time': sum(agg[algo]['time']) / max(len(agg[algo]['time']), 1),
+                'generated': sum(agg[algo]['generated']) / max(len(agg[algo]['generated']), 1),
+                'count': len(agg[algo]['cost'])
+            }
 
-        # Vẽ biểu đồ cột cho thời gian trung bình
-        self.draw_bar_chart(chart_canvas, algo_stats, "Average Time (s)", "total_time", 400, 50, 300, 200)
+        # Create canvas
+        canvas = tk.Canvas(parent, bg="#1a1a2e", highlightthickness=0)
+        canvas.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Vẽ biểu đồ cột cho số moves trung bình
-        self.draw_bar_chart(chart_canvas, algo_stats, "Average Moves", "total_moves", 50, 300, 300, 200)
+        w = 1000
+        h = 480
+        padding = 60
+        chart_w = w - 2 * padding
+        chart_h = h - 2 * padding
 
-        # Vẽ biểu đồ cột cho hiệu suất thuật toán (steps)
-        self.draw_bar_chart(chart_canvas, algo_stats, "Average Steps", "total_steps", 400, 300, 300, 200)
+        # Prepare three subcharts stacked vertically: cost, time, generated
+        sub_h = (chart_h - 40) // 3
+        labels = ['Average Cost', 'Average Time (s)', 'Average Generated']
+        metrics = ['cost', 'time', 'generated']
+        colors = ['#e94560', '#27ae60', '#3498db', '#f39c12', '#9b59b6']
+
+        for idx, metric in enumerate(metrics):
+            top = padding + idx * (sub_h + 10)
+            left = padding
+            # axis
+            canvas.create_text(left + 10, top + 10, text=labels[idx], anchor='nw', fill='#fff', font=("Arial", 11, 'bold'))
+            # bars area
+            bar_area_x = left
+            bar_area_y = top + 30
+            bar_area_w = chart_w
+            bar_area_h = sub_h - 40
+
+            # compute values and scale
+            values = [avg[a][metric] for a in algos]
+            max_val = max(values) if values else 1
+            if max_val == 0:
+                max_val = 1
+
+            bar_group_width = bar_area_w // max(1, len(algos))
+            bar_width = int(bar_group_width * 0.6)
+
+            for i, a in enumerate(algos):
+                v = avg[a][metric]
+                bar_h = int((v / max_val) * bar_area_h)
+                bx = bar_area_x + i * bar_group_width + (bar_group_width - bar_width) // 2
+                by = bar_area_y + (bar_area_h - bar_h)
+                canvas.create_rectangle(bx, by, bx + bar_width, bar_area_y + bar_area_h, fill=colors[i % len(colors)], outline='')
+                canvas.create_text(bx + bar_width // 2, bar_area_y + bar_area_h + 12, text=a, fill='#fff', font=("Arial", 9), anchor='n')
+                # value label
+                canvas.create_text(bx + bar_width // 2, by - 6, text=f"{v:.1f}", fill='#fff', font=("Arial", 8), anchor='s')
+
+        # Title
+        canvas.create_text(w // 2, padding - 20, text="Performance Averages by Algorithm",
+                            font=("Arial", 14, "bold"), fill="#fff")
 
     def draw_bar_chart(self, canvas, data, title, metric, x, y, width, height):
         """Vẽ biểu đồ cột"""

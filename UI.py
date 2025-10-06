@@ -2,105 +2,159 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 
+
 class GameUI:
-    def __init__(self, root, rows, cols, cell_size, game):
+    def __init__(self, root, rows, cols, cell_size, game=None):
         self.root = root
         self.rows = rows
         self.cols = cols
         self.cell_size = cell_size
         self.game = game
 
-        # Load ảnh background
-        self.bg_image = Image.open("background/backgroundmain.png")
-        self.bg_image = self.bg_image.resize((1000, 1000))  # Điều chỉnh kích thước phù hợp
-        self.bg_photo = ImageTk.PhotoImage(self.bg_image)
+        # Load background image (best-effort)
+        try:
+            self.bg_image = Image.open("background/backgroundmain.jpg")
+            self.bg_image = self.bg_image.resize((1000, 1000))
+            self.bg_photo = ImageTk.PhotoImage(self.bg_image)
+        except Exception:
+            self.bg_photo = None
 
-        # Tạo canvas làm nền chính
+        # Main canvas
         self.bg_canvas = tk.Canvas(self.root, width=1000, height=700, highlightthickness=0)
         self.bg_canvas.pack(fill="both", expand=True)
+        if self.bg_photo:
+            self.bg_canvas.create_image(0, 0, image=self.bg_photo, anchor="nw")
 
-        # Vẽ ảnh nền
-        self.bg_canvas.create_image(0, 0, image=self.bg_photo, anchor="nw")
-
-        # --- Overlay (dùng để làm mờ nền khi Stop) ---
+        # --- Overlay (for pause and background reveal) ---
         self.background_overlay = None
         self.overlay_rect = None
+        
+        # Initialize background overlay for fade effect
+        try:
+            board_w, board_h = self.cols * self.cell_size, self.rows * self.cell_size
+            self.background_overlay = tk.Canvas(self.bg_canvas, width=board_w, height=board_h, bg="", highlightthickness=0)
+            self.overlay_rect = self.background_overlay.create_rectangle(0, 0, board_w, board_h, fill="#0B0C10", outline="")
+            # Position overlay over the game board
+            self.overlay_window = self.bg_canvas.create_window(500, 160, window=self.background_overlay, anchor="n")
+        except Exception:
+            pass
 
         # Style
         style = ttk.Style()
-        style.theme_use('clam')
-        style.configure("TLabel",
-                        font=("Arial", 12, "bold"),
-                        background="",
-                        foreground="#2C3E50")
-        style.configure("TCombobox",
-                        font=("Arial", 10),
-                        fieldbackground="#ECF0F1",
-                        background="")
-        style.configure("TCheckbutton",
-                        font=("Arial", 10),
-                        background="",
-                        foreground="#2C3E50")
+        try:
+            style.theme_use('clam')
+        except Exception:
+            pass
+        # Dark arcade theme inspired styling
+        style.configure("TLabel", font=("Arial", 12, "bold"), background="#0B0C10", foreground="#66FCF1")
+        
+        # Rounded dropdown styling like the second image
+        style.configure("TCombobox", 
+                       font=("Arial", 10, "bold"), 
+                       fieldbackground="#2D3748", 
+                       background="#2D3748", 
+                       foreground="#FFFFFF",
+                       borderwidth=0,
+                       relief="flat")
+        style.map("TCombobox", 
+                 fieldbackground=[("readonly", "#2D3748")],
+                 background=[("readonly", "#2D3748")])
+        
+        # Create custom rounded combobox
+        style.configure("Rounded.TCombobox",
+                       fieldbackground="#2D3748",
+                       background="#2D3748", 
+                       foreground="#FFFFFF",
+                       borderwidth=0,
+                       relief="flat")
+        
+        style.configure("TCheckbutton", font=("Arial", 10), background="#0B0C10", foreground="#C5C6C7")
 
-        # Labels
-        self.moves_label = tk.Label(
-            self.bg_canvas,
-            text="Cost: 0",
-            fg="#E74C3C",
-            bg="#FFFFFF",
-            font=("Arial", 12, "bold")
-        )
-        self.moves_label_window = self.bg_canvas.create_window(100, 20, window=self.moves_label, anchor="nw")
+        # Status labels
+        # Enhanced top bar with neon gradient effect
+        self.topbar = self.bg_canvas.create_rectangle(0, 0, 1000, 50, fill="#0B0C10", outline="")
+        # Create neon gradient effect similar to pygame version
+        try:
+            for i in range(50):
+                ratio = i / 50
+                # Neon blue to purple gradient
+                r = int(160 + 80 * ratio)
+                g = int(10 + 120 * ratio) 
+                b = int(255 - 60 * ratio)
+                color = f"#{r:02x}{g:02x}{b:02x}"
+                self.bg_canvas.create_line(0, i, 1000, i, fill=color, width=1)
+        except Exception:
+            pass
+            
+        # Enhanced neon title with multiple glow layers
+        try:
+            # Multiple shadow layers for depth
+            self.bg_canvas.create_text(24, 16, text="PIKACHU", fill="#000000", font=("Arial", 20, "bold"), anchor="nw")
+            self.bg_canvas.create_text(23, 15, text="PIKACHU", fill="#1A202C", font=("Arial", 20, "bold"), anchor="nw")
+            self.bg_canvas.create_text(22, 14, text="PIKACHU", fill="#2D3748", font=("Arial", 20, "bold"), anchor="nw")
+            # Main text with glow
+            self.bg_canvas.create_text(20, 12, text="PIKACHU", fill="#66FCF1", font=("Arial", 20, "bold"), anchor="nw")
+            # Inner glow
+            self.bg_canvas.create_text(20, 12, text="PIKACHU", fill="#A0E7E5", font=("Arial", 18, "bold"), anchor="nw")
+        except Exception:
+            pass
+        # Enhanced status labels with text effects
+        self.moves_label = tk.Label(self.bg_canvas, text="Cost: 0", fg="#FFD166", bg="#0B0C10",
+                                    font=("Arial", 12, "bold"), relief="flat", bd=0)
+        self.moves_label_window = self.bg_canvas.create_window(100, 12, window=self.moves_label, anchor="nw")
+        
+        # Add text shadow effect to cost label
+        try:
+            self.cost_shadow = self.bg_canvas.create_text(102, 14, text="Cost: 0", fill="#000000", 
+                                                         font=("Arial", 12, "bold"), anchor="nw")
+            self.bg_canvas.tag_lower(self.cost_shadow)
+        except Exception:
+            pass
 
-        self.bg_canvas.tag_raise(self.moves_label_window)
-
-        self.time_label = tk.Label(
-            self.bg_canvas,
-            text="Time: 0s",
-            fg="#27AE60",
-            bg="#FFFFFF",
-            font=("Arial", 12, "bold")
-        )
-        self.time_label_window = self.bg_canvas.create_window(200, 20, window=self.time_label, anchor="nw")
-        self.bg_canvas.tag_raise(self.time_label_window)
+        self.time_label = tk.Label(self.bg_canvas, text="Time: 0s", fg="#06D6A0", bg="#0B0C10",
+                                   font=("Arial", 12, "bold"), relief="flat", bd=0)
+        self.time_label_window = self.bg_canvas.create_window(220, 12, window=self.time_label, anchor="nw")
+        
+        # Add text shadow effect to time label
+        try:
+            self.time_shadow = self.bg_canvas.create_text(222, 14, text="Time: 0s", fill="#000000", 
+                                                         font=("Arial", 12, "bold"), anchor="nw")
+            self.bg_canvas.tag_lower(self.time_shadow)
+        except Exception:
+            pass
 
         # Sound toggle
         self.sound_var = tk.BooleanVar(value=True)
-        style = ttk.Style()
-        style.configure("MyCheck.TCheckbutton",
-                        background="#FFFFFF",
-                        foreground="#2C3E50")
-        self.sound_toggle = ttk.Checkbutton(
-            self.bg_canvas,
-            text="🔊 Sound",
-            variable=self.sound_var,
-            command=self.toggle_sound,
-            style="MyCheck.TCheckbutton",
-            width=12
-        )
-        self.sound_toggle_window = self.bg_canvas.create_window(350, 20, window=self.sound_toggle, anchor="nw")
+        style.configure("MyCheck.TCheckbutton", background="#0B0C10", foreground="#C5C6C7")
+        self.sound_toggle = ttk.Checkbutton(self.bg_canvas, text="🔊 Sound", variable=self.sound_var,
+                                            command=self.toggle_sound, style="MyCheck.TCheckbutton", width=12)
+        self.sound_toggle_window = self.bg_canvas.create_window(370, 12, window=self.sound_toggle, anchor="nw")
 
-        # Mode selection
+        # Mode selection with rounded background
         self.mode_var = tk.StringVar(value="Manual")
-        self.mode_menu = ttk.Combobox(
-            self.bg_canvas,
-            textvariable=self.mode_var,
-            values=["Manual", "Auto"],
-            state="readonly",
-            width=10
-        )
-        self.mode_menu_window = self.bg_canvas.create_window(470, 20, window=self.mode_menu, anchor="nw")
+        self.mode_menu = ttk.Combobox(self.bg_canvas, textvariable=self.mode_var, values=["Manual", "Auto"],
+                                      state="readonly", width=10, style="Rounded.TCombobox")
+        self.mode_menu_window = self.bg_canvas.create_window(520, 12, window=self.mode_menu, anchor="nw")
+        
+        # Add rounded background for mode dropdown
+        try:
+            self.mode_bg = self.bg_canvas.create_oval(500, 5, 580, 25, fill="#2D3748", outline="#C8C8DC", width=2)
+            self.bg_canvas.tag_lower(self.mode_bg)
+        except Exception:
+            pass
 
-        # Algorithm selection
+        # Algorithm selection with rounded background
         self.algo_var = tk.StringVar(value="DFS")
-        self.algo_menu = ttk.Combobox(
-            self.bg_canvas,
-            textvariable=self.algo_var,
-            values=["DFS", "BFS", "UCS", "A*"],
-            state="readonly",
-            width=8
-        )
-        self.algo_menu_window = self.bg_canvas.create_window(570, 20, window=self.algo_menu, anchor="nw")
+        self.algo_menu = ttk.Combobox(self.bg_canvas, textvariable=self.algo_var,
+                                      values=["DFS", "BFS", "UCS", "A*", "HillClimb"], state="readonly", width=10, style="Rounded.TCombobox")
+        self.algo_menu_window = self.bg_canvas.create_window(630, 12, window=self.algo_menu, anchor="nw")
+        
+        # Add rounded background for algo dropdown
+        try:
+            self.algo_bg = self.bg_canvas.create_oval(610, 5, 690, 25, fill="#2D3748", outline="#C8C8DC", width=2)
+            self.bg_canvas.tag_lower(self.algo_bg)
+        except Exception:
+            pass
 
         # Button style
         button_style = {
@@ -109,148 +163,341 @@ class GameUI:
             "font": ("Arial", 10, "bold"),
             "relief": "raised",
             "bd": 2,
-            "cursor": "hand2"
+            "cursor": "hand2",
+            "activeforeground": "#0B0C10"
         }
-        button_count = 5
+
+        # Layout buttons
+        button_count = 7
         button_width = 12 * 8 + 4
         total_available_width = 1000 - 200
-        button_spacing = (total_available_width - (button_count * button_width)) // (button_count + 1)
-        start_x = 100
+        button_spacing = max(8, (total_available_width - (button_count * button_width)) // (button_count + 1))
+        start_x = 60
 
-        self.new_btn = tk.Button(
-            self.bg_canvas,
-            text="🆕 New Game",
-            bg="#3498DB",
-            fg="white",
-            activebackground="#2980B9",
-            activeforeground="white",
-            **button_style
-        )
+        self.new_btn = tk.Button(self.bg_canvas, text="🆕 New Game", bg="#118AB2", fg="#FFFFFF",
+                                 activebackground="#073B4C", **button_style)
         self.new_btn_window = self.bg_canvas.create_window(start_x, 60, window=self.new_btn, anchor="nw")
 
-        self.auto_btn = tk.Button(
-            self.bg_canvas,
-            text="▶️ Start Auto",
-            bg="#27AE60",
-            fg="white",
-            activebackground="#229954",
-            activeforeground="white",
-            **button_style
-        )
-        self.auto_btn_window = self.bg_canvas.create_window(start_x + button_spacing + button_width, 60, window=self.auto_btn, anchor="nw")
+        self.auto_btn = tk.Button(self.bg_canvas, text="▶️ Start Auto", bg="#06D6A0", fg="#0B0C10",
+                                  activebackground="#118AB2", **button_style)
+        self.auto_btn_window = self.bg_canvas.create_window(start_x + button_spacing + button_width, 60,
+                                                             window=self.auto_btn, anchor="nw")
+        # wire to game's start_auto if provided
+        if hasattr(self, 'game') and self.game and hasattr(self.game, 'start_auto'):
+            try:
+                self.auto_btn.config(command=self.game.start_auto)
+            except Exception:
+                pass
 
-        self.stop_btn = tk.Button(
-            self.bg_canvas,
-            text="⏹️ Stop",
-            bg="#E74C3C",
-            fg="white",
-            activebackground="#C0392B",
-            activeforeground="white",
-            command=self.pause_game,
-            **button_style
-        )
-        self.stop_btn_window = self.bg_canvas.create_window(start_x + 2 * (button_spacing + button_width), 60, window=self.stop_btn, anchor="nw")
+        # Skip button (user requested)
+        self.skip_btn = tk.Button(self.bg_canvas, text="⏭️ Skip", bg="#FFD166", fg="#0B0C10",
+                                  activebackground="#EF476F", **button_style)
+        self.skip_btn_window = self.bg_canvas.create_window(start_x + 2 * (button_spacing + button_width), 60,
+                                                             window=self.skip_btn, anchor="nw")
+        # wire skip if game has skip_simulation
+        if hasattr(self, 'game') and self.game and hasattr(self.game, 'skip_simulation'):
+            try:
+                self.skip_btn.config(command=self.game.skip_simulation)
+            except Exception:
+                pass
 
-        self.continue_btn = tk.Button(
-            self.bg_canvas,
-            text="▶️ Continue",
-            bg="#F39C12",
-            fg="white",
-            activebackground="#E67E22",
-            activeforeground="white",
-            command=self.resume_game,
-            **button_style
-        )
-        self.continue_btn_window = self.bg_canvas.create_window(start_x + 3 * (button_spacing + button_width), 60, window=self.continue_btn, anchor="nw")
+        self.stop_btn = tk.Button(self.bg_canvas, text="⏹️ Stop", bg="#EF476F", fg="#FFFFFF",
+                                  activebackground="#D62839", command=self.pause_game,
+                                  **button_style)
+        self.stop_btn_window = self.bg_canvas.create_window(start_x + 3 * (button_spacing + button_width), 60,
+                                                             window=self.stop_btn, anchor="nw")
+        if hasattr(self, 'game') and self.game and hasattr(self.game, 'stop_game'):
+            try:
+                self.stop_btn.config(command=self.game.stop_game)
+            except Exception:
+                pass
 
-        self.history_btn = tk.Button(
-            self.bg_canvas,
-            text="📊 History",
-            bg="#9B59B6",
-            fg="white",
-            activebackground="#8E44AD",
-            activeforeground="white",
-            **button_style
-        )
-        self.history_btn_window = self.bg_canvas.create_window(start_x + 4 * (button_spacing + button_width), 60, window=self.history_btn, anchor="nw")
+        self.continue_btn = tk.Button(self.bg_canvas, text="▶️ Continue", bg="#FFD166", fg="#0B0C10",
+                                      activebackground="#06D6A0", command=self.resume_game,
+                                      **button_style)
+        self.continue_btn_window = self.bg_canvas.create_window(start_x + 4 * (button_spacing + button_width), 60,
+                                                                 window=self.continue_btn, anchor="nw")
+        if hasattr(self, 'game') and self.game and hasattr(self.game, 'resume_game'):
+            try:
+                self.continue_btn.config(command=self.game.resume_game)
+            except Exception:
+                pass
 
-        #nút Home
-        self.home_btn = tk.Button(
-            self.bg_canvas,
-            text="🏠 Home",
-            bg="#27AE60",
-            fg="white",
-            activebackground="#229954",
-            activeforeground="white",
-            **button_style
-        )
+        self.history_btn = tk.Button(self.bg_canvas, text="📊 History", bg="#073B4C", fg="#FFFFFF",
+                                     activebackground="#118AB2", **button_style)
+        self.history_btn_window = self.bg_canvas.create_window(start_x + 5 * (button_spacing + button_width), 60,
+                                                                window=self.history_btn, anchor="nw")
+        if hasattr(self, 'game') and self.game and hasattr(self.game, 'show_history'):
+            try:
+                self.history_btn.config(command=self.game.show_history)
+            except Exception:
+                pass
 
-        self.home_btn_window = self.bg_canvas.create_window(
-            start_x + 5 * (button_spacing + button_width), 60,  # Vị trí cuối cùng
-            window=self.home_btn,
-            anchor="nw"
-        )
+        self.home_btn = tk.Button(self.bg_canvas, text="🏠 Home", bg="#06D6A0", fg="#0B0C10",
+                                  activebackground="#118AB2", **button_style)
+        self.home_btn_window = self.bg_canvas.create_window(start_x + 6 * (button_spacing + button_width), 60,
+                                                            window=self.home_btn, anchor="nw")
+        if hasattr(self, 'game') and self.game and hasattr(self.game, 'go_home'):
+            try:
+                self.home_btn.config(command=self.game.go_home)
+            except Exception:
+                pass
 
-        # --- Bàn cờ ---
+        # --- Enhance buttons with rounded backgrounds and hover/press effects ---
+        try:
+            self._button_bg_rects = {}
+            # Cohesive dark arcade color scheme
+            self._decorate_button(self.new_btn, self.new_btn_window,
+                                  normal="#2D3748", hover="#4A5568", active="#1A202C", text="#E2E8F0", 
+                                  glow="#3182CE", shadow="#1A202C")
+            self._decorate_button(self.auto_btn, self.auto_btn_window,
+                                  normal="#38A169", hover="#48BB78", active="#2F855A", text="#F7FAFC", 
+                                  glow="#68D391", shadow="#2F855A")
+            self._decorate_button(self.skip_btn, self.skip_btn_window,
+                                  normal="#D69E2E", hover="#F6AD55", active="#B7791F", text="#1A202C", 
+                                  glow="#FBD38D", shadow="#B7791F")
+            self._decorate_button(self.stop_btn, self.stop_btn_window,
+                                  normal="#E53E3E", hover="#FC8181", active="#C53030", text="#F7FAFC", 
+                                  glow="#FEB2B2", shadow="#C53030")
+            self._decorate_button(self.continue_btn, self.continue_btn_window,
+                                  normal="#805AD5", hover="#9F7AEA", active="#6B46C1", text="#F7FAFC", 
+                                  glow="#B794F6", shadow="#6B46C1")
+            self._decorate_button(self.history_btn, self.history_btn_window,
+                                  normal="#2B6CB0", hover="#4299E1", active="#2C5282", text="#F7FAFC", 
+                                  glow="#90CDF4", shadow="#2C5282")
+            self._decorate_button(self.home_btn, self.home_btn_window,
+                                  normal="#38A169", hover="#48BB78", active="#2F855A", text="#F7FAFC", 
+                                  glow="#68D391", shadow="#2F855A")
+        except Exception:
+            pass
+
+        # --- Game board with enhanced styling ---
         w, h = self.cols * self.cell_size, self.rows * self.cell_size
-        self.canvas = tk.Canvas(
-            self.bg_canvas,
-            width=w,
-            height=h,
-            bg="#F8F9FA",
-            borderwidth=3,
-            relief="ridge",
-            highlightthickness=2,
-            highlightbackground="#BDC3C7"
-        )
-        self.canvas_window = self.bg_canvas.create_window(500, 150, window=self.canvas, anchor="n")
+        self.canvas = tk.Canvas(self.bg_canvas, width=w, height=h, bg="#1A1A2E", borderwidth=0, relief="flat",
+                                highlightthickness=2, highlightbackground="#16213E")
+        self.canvas_window = self.bg_canvas.create_window(500, 160, window=self.canvas, anchor="n")
+        
+        # Add neon vertical lines around button area (similar to pygame version)
+        self._draw_neon_decorations()
 
-        # Tag để đảm bảo bàn cờ nằm trên overlay
-        self.canvas.addtag_all("game_board")
-        # Đưa các widget lên trên background
-        self.bg_canvas.tag_raise(self.moves_label_window)
-        self.bg_canvas.tag_raise(self.time_label_window)
-        self.bg_canvas.tag_raise(self.sound_toggle_window)
-        self.bg_canvas.tag_raise(self.mode_menu_window)
-        self.bg_canvas.tag_raise(self.algo_menu_window)
-        self.bg_canvas.tag_raise(self.new_btn_window)
-        self.bg_canvas.tag_raise(self.auto_btn_window)
-        self.bg_canvas.tag_raise(self.stop_btn_window)
-        self.bg_canvas.tag_raise(self.continue_btn_window)
-        self.bg_canvas.tag_raise(self.history_btn_window)
-        self.bg_canvas.tag_raise(self.canvas_window)
+        # Raise widgets to top
+        for win in [self.moves_label_window, self.time_label_window, self.sound_toggle_window,
+                    self.mode_menu_window, self.algo_menu_window, self.new_btn_window, self.auto_btn_window,
+                    self.skip_btn_window, self.stop_btn_window, self.continue_btn_window, self.history_btn_window,
+                    self.home_btn_window, self.canvas_window]:
+            try:
+                self.bg_canvas.tag_raise(win)
+            except Exception:
+                pass
 
-        # Vẽ lưới
+        # Enhanced grid with better visibility
         for r in range(self.rows + 1):
-            self.canvas.create_line(
-                0, r * self.cell_size, w, r * self.cell_size,
-                fill="#D5DBDB",
-                width=1
-            )
+            # More visible grid lines
+            self.canvas.create_line(0, r * self.cell_size, w, r * self.cell_size, fill="#2D3748", width=2)
+            self.canvas.create_line(0, r * self.cell_size, w, r * self.cell_size, fill="#4A5568", width=1)
         for c in range(self.cols + 1):
-            self.canvas.create_line(
-                c * self.cell_size, 0, c * self.cell_size, h,
-                fill="#D5DBDB",
-                width=1
-            )
+            # More visible grid lines
+            self.canvas.create_line(c * self.cell_size, 0, c * self.cell_size, h, fill="#2D3748", width=2)
+            self.canvas.create_line(c * self.cell_size, 0, c * self.cell_size, h, fill="#4A5568", width=1)
+
+        # Enhanced board border with neon effect
+        try:
+            # Outer shadow
+            self.canvas.create_rectangle(2, 2, w - 2, h - 2, outline="#000000", width=4)
+            # Main border
+            self.canvas.create_rectangle(4, 4, w - 4, h - 4, outline="#66FCF1", width=2)
+            # Inner glow
+            self.canvas.create_rectangle(6, 6, w - 6, h - 6, outline="#A0E7E5", width=1)
+        except Exception:
+            pass
 
     def toggle_sound(self):
         state = self.sound_var.get()
         self.sound_toggle.config(text="🔊 Sound" if state else "🔇 Sound")
 
     def pause_game(self):
-        """Hiệu ứng mờ nền khi Stop"""
+        """Show overlay when paused"""
         if self.background_overlay is not None:
             self.background_overlay.lift()
             self.background_overlay.itemconfig(self.overlay_rect, fill="black")
-            self.background_overlay.itemconfig(self.overlay_rect, stipple="gray50")  # giả lập alpha
+            self.background_overlay.itemconfig(self.overlay_rect, stipple="gray50")
 
     def resume_game(self):
-        """Xoá overlay khi Continue"""
+        """Hide overlay when resumed"""
         if self.background_overlay is not None:
             self.background_overlay.lower()
             self.background_overlay.itemconfig(self.overlay_rect, fill="")
             self.background_overlay.itemconfig(self.overlay_rect, stipple="")
+
+    # ----------------- UI helpers -----------------
+    def _create_round_rect(self, x1, y1, x2, y2, r=20, **kwargs):
+        # Create perfect pill shape using tkinter's built-in rounded rectangle
+        try:
+            # Use tkinter's create_round_rectangle if available, otherwise use oval
+            return self.bg_canvas.create_oval(x1, y1, x2, y2, **kwargs)
+        except Exception:
+            # Fallback to simple rounded rectangle
+            return self.bg_canvas.create_oval(x1, y1, x2, y2, **kwargs)
+
+    def _decorate_button(self, btn, window_id, normal="#118AB2", hover="#0FA3C8", active="#073B4C", text="#FFFFFF", glow="#FFFFFF", shadow="#000000"):
+        # Make button completely transparent to show only our custom rounded background
+        try:
+            btn.configure(relief="flat", bd=0, highlightthickness=0, fg=text, bg="", activebackground="")
+        except Exception:
+            pass
+
+        # Ensure geometry is computed
+        try:
+            self.root.update_idletasks()
+            bbox = self.bg_canvas.bbox(window_id)
+            if not bbox:
+                return
+            x1, y1, x2, y2 = bbox
+            pad = 15
+            
+            # Create shadow effect
+            shadow_id = self._create_round_rect(x1 - pad + 3, y1 - pad + 3, x2 + pad + 3, y2 + pad + 3, 
+                                             fill="#000000", outline="")
+            self.bg_canvas.tag_lower(shadow_id)
+            
+            # Create main button background - perfect pill shape
+            rect_id = self._create_round_rect(x1 - pad, y1 - pad, x2 + pad, y2 + pad, 
+                                            fill=normal, outline="")
+            self.bg_canvas.tag_lower(rect_id)
+            
+            # Create border with neon effect
+            border_id = self._create_round_rect(x1 - pad, y1 - pad, x2 + pad, y2 + pad, 
+                                              fill="", outline="#C8C8DC", width=2)
+            self.bg_canvas.tag_lower(border_id)
+            
+            # Create glow effect (initially hidden)
+            glow_id = self._create_round_rect(x1 - pad - 5, y1 - pad - 5, x2 + pad + 5, y2 + pad + 5, 
+                                            fill=glow, outline="")
+            self.bg_canvas.tag_lower(glow_id)
+            self.bg_canvas.itemconfig(glow_id, state="hidden")
+            
+            # Keep mapping and initial colors
+            self._button_bg_rects[btn] = {
+                "rect": rect_id, "shadow": shadow_id, "glow": glow_id, "border": border_id,
+                "normal": normal, "hover": hover, "active": active
+            }
+
+            # Enhanced animation effects with text glow
+            def animate_color(target_color, glow_state="hidden", scale=1.0):
+                try:
+                    self.bg_canvas.itemconfig(rect_id, fill=target_color)
+                    self.bg_canvas.itemconfig(glow_id, state=glow_state)
+                    btn.configure(bg=target_color, fg=text)
+                    
+                    # Add text glow effect
+                    if glow_state == "normal":
+                        btn.configure(font=("Arial", 11, "bold"))
+                    else:
+                        btn.configure(font=("Arial", 10, "bold"))
+                except Exception:
+                    pass
+
+            def on_enter(_e):
+                # Show glow effect with enhanced shadow
+                self.bg_canvas.itemconfig(glow_id, state="normal")
+                animate_color(hover, "normal", 1.08)
+
+            def on_leave(_e):
+                # Hide glow effect
+                self.bg_canvas.itemconfig(glow_id, state="hidden")
+                animate_color(normal, "hidden", 1.0)
+
+            def on_press(_e):
+                animate_color(active, "normal", 0.96)
+
+            def on_release(_e):
+                animate_color(hover, "normal", 1.08)
+
+            # Bind events with smooth transitions
+            btn.bind("<Enter>", on_enter)
+            btn.bind("<Leave>", on_leave)
+            btn.bind("<ButtonPress-1>", on_press)
+            btn.bind("<ButtonRelease-1>", on_release)
+            
+            # Add subtle scale effect on press
+            def on_press_scale(_e):
+                try:
+                    # Slightly shrink the button on press
+                    bbox = self.bg_canvas.bbox(window_id)
+                    if bbox:
+                        x1, y1, x2, y2 = bbox
+                        scale = 0.95
+                        new_x1 = x1 + (x2-x1) * (1-scale) / 2
+                        new_y1 = y1 + (y2-y1) * (1-scale) / 2
+                        new_x2 = x2 - (x2-x1) * (1-scale) / 2
+                        new_y2 = y2 - (y2-y1) * (1-scale) / 2
+                        self.bg_canvas.coords(window_id, new_x1, new_y1)
+                except Exception:
+                    pass
+                    
+            def on_release_scale(_e):
+                try:
+                    # Restore original size
+                    bbox = self.bg_canvas.bbox(window_id)
+                    if bbox:
+                        x1, y1, x2, y2 = bbox
+                        self.bg_canvas.coords(window_id, x1, y1)
+                except Exception:
+                    pass
+            
+            btn.bind("<ButtonPress-1>", lambda e: [on_press(e), on_press_scale(e)])
+            btn.bind("<ButtonRelease-1>", lambda e: [on_release(e), on_release_scale(e)])
+            
+        except Exception:
+            pass
+
+    def _draw_neon_decorations(self):
+        """Draw neon vertical lines around button area similar to pygame version"""
+        try:
+            # Button area coordinates
+            btn_top = 60
+            btn_bot = 120
+            line_h = btn_bot - btn_top
+            
+            # Left neon line with gradient
+            for y in range(line_h):
+                ratio = y / line_h
+                r = int(160 + 80 * ratio)
+                g = int(10 + 120 * ratio)
+                b = int(255 - 60 * ratio)
+                color = f"#{r:02x}{g:02x}{b:02x}"
+                # Multiple layers for glow effect
+                self.bg_canvas.create_line(60, btn_top + y, 60, btn_top + y, fill=color, width=8)
+                self.bg_canvas.create_line(63, btn_top + y, 63, btn_top + y, fill=color, width=4)
+                self.bg_canvas.create_line(65, btn_top + y, 65, btn_top + y, fill=color, width=2)
+            
+            # Right neon line with different gradient
+            for y in range(line_h):
+                ratio = y / line_h
+                r = int(255 - 60 * ratio)
+                g = int(160 + 80 * ratio)
+                b = int(220 + 30 * ratio)
+                color = f"#{r:02x}{g:02x}{b:02x}"
+                # Multiple layers for glow effect
+                self.bg_canvas.create_line(940, btn_top + y, 940, btn_top + y, fill=color, width=8)
+                self.bg_canvas.create_line(937, btn_top + y, 937, btn_top + y, fill=color, width=4)
+                self.bg_canvas.create_line(935, btn_top + y, 935, btn_top + y, fill=color, width=2)
+        except Exception:
+            pass
+
+    def _create_button_panel(self, x, y, w, h):
+        """Create button panel with shadow and glow effects"""
+        try:
+            # Shadow effect
+            shadow = self.bg_canvas.create_rectangle(x+4, y+4, x+w+4, y+h+4, fill="#323232", outline="")
+            self.bg_canvas.tag_lower(shadow)
+            
+            # Main panel
+            panel = self.bg_canvas.create_rectangle(x, y, x+w, y+h, fill="#F5F5FF", outline="#C8C8DC", width=3)
+            self.bg_canvas.tag_lower(panel)
+            return panel
+        except Exception:
+            return None
 
 
 if __name__ == "__main__":

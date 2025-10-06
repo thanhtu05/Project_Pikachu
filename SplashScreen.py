@@ -256,7 +256,14 @@ class ModernSplashScreen:
 
         game_root = tk.Tk()
         game = PikachuGame(game_root, rows, cols)
-        game_root.mainloop()
+        try:
+            game_root.mainloop()
+        except KeyboardInterrupt:
+            # Allow Ctrl+C to stop the GUI loop cleanly
+            try:
+                game_root.destroy()
+            except Exception:
+                pass
 
     def on_game_close(self, game_root):
         """Xử lý khi cửa sổ game bị đóng, quay về SplashScreen."""

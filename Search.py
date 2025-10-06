@@ -16,6 +16,8 @@ class SearchAlgorithms:
         self.simulation_mode = False
         self.simulation_steps = []
         self.current_step = 0
+        # Debugging toggle: when True, methods will print neighbor-generation diagnostics
+        self.debug = False
 
     def neighbors(self, r, c):
         for dr, dc in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
@@ -48,19 +50,31 @@ class SearchAlgorithms:
             self._simulate_ucs(start, goal)
         elif algo == "A*":
             self._simulate_astar(start, goal)
+        elif algo == "HillClimb":
+            self._simulate_hill_climb(start, goal)
 
     def _simulate_dfs(self, start, goal):
         start_time = time.time()
         self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        # debug counters
+        total_candidates = 0
+        accepted = 0
+        rejected_turns = 0
+        rejected_blocked = 0
 
         stack = [(start, [start], 0)]
         visited = set()
-        generated = set()
+        generated = set([start])
+        self.stats['generated'] = 1
 
         while stack:
             (r, c), path, turns = stack.pop()
-            self.stats['generated'] += 1
-            generated.add((r, c))
+
+            if (r, c) in visited:
+                continue
+            # mark as visited (expanded)
+            visited.add((r, c))
+            self.stats['visited'] = len(visited)
 
             if self.simulation_mode:
                 self.simulation_steps.append(("visit", (r, c), path.copy(), turns))
@@ -68,39 +82,56 @@ class SearchAlgorithms:
             if (r, c) == goal and self.count_turns(path) <= 2:
                 self.stats['steps'] = len(path) - 1
                 self.stats['visited'] = len(visited)
+                self.stats['generated'] = len(generated)
                 self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
                 self.simulation_steps.append(("goal", (r, c), path.copy(), turns))
                 return
 
-            if (r, c) in visited:
-                continue
-            visited.add((r, c))
-
             for nr, nc, dr, dc in self.neighbors(r, c):
-                if self.board[nr][nc] == -1 or (nr, nc) == goal:
-                    new_path = path + [(nr, nc)]
-                    new_turns = self.count_turns(new_path)
-                    if new_turns <= 2:
-                        stack.append(((nr, nc), new_path, new_turns))
-                        if self.simulation_mode:
-                            self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
+                total_candidates += 1
+                if not (self.board[nr][nc] == -1 or (nr, nc) == goal):
+                    rejected_blocked += 1
+                    continue
+                new_path = path + [(nr, nc)]
+                new_turns = self.count_turns(new_path)
+                if new_turns <= 2:
+                    accepted += 1
+                    stack.append(((nr, nc), new_path, new_turns))
+                    # count generated when neighbor is created (pushed to frontier)
+                    if (nr, nc) not in generated:
+                        generated.add((nr, nc))
+                        self.stats['generated'] = len(generated)
+                    if self.simulation_mode:
+                        self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
+                else:
+                    rejected_turns += 1
 
         self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+        if self.debug:
+            print(f"_simulate_dfs: candidates={total_candidates}, accepted={accepted}, rejected_turns={rejected_turns}, rejected_blocked={rejected_blocked}, generated={self.stats['generated']}, visited={self.stats['visited']}")
         self.simulation_steps.append(("none", None, None, None))
 
     def _simulate_bfs(self, start, goal):
         start_time = time.time()
         self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        total_candidates = 0
+        accepted = 0
+        rejected_turns = 0
+        rejected_blocked = 0
 
         queue = deque([(start, [start], 0)])
         visited = set()
-        generated = set()
+        generated = set([start])
+        self.stats['generated'] = 1
 
         while queue:
             (r, c), path, turns = queue.popleft()
-            self.stats['generated'] += 1
-            generated.add((r, c))
+
+            if (r, c) in visited:
+                continue
+            visited.add((r, c))
+            self.stats['visited'] = len(visited)
 
             if self.simulation_mode:
                 self.simulation_steps.append(("visit", (r, c), path.copy(), turns))
@@ -108,39 +139,55 @@ class SearchAlgorithms:
             if (r, c) == goal and self.count_turns(path) <= 2:
                 self.stats['steps'] = len(path) - 1
                 self.stats['visited'] = len(visited)
+                self.stats['generated'] = len(generated)
                 self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
                 self.simulation_steps.append(("goal", (r, c), path.copy(), turns))
                 return
 
-            if (r, c) in visited:
-                continue
-            visited.add((r, c))
-
             for nr, nc, dr, dc in self.neighbors(r, c):
-                if self.board[nr][nc] == -1 or (nr, nc) == goal:
-                    new_path = path + [(nr, nc)]
-                    new_turns = self.count_turns(new_path)
-                    if new_turns <= 2:
-                        queue.append(((nr, nc), new_path, new_turns))
-                        if self.simulation_mode:
-                            self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
+                total_candidates += 1
+                if not (self.board[nr][nc] == -1 or (nr, nc) == goal):
+                    rejected_blocked += 1
+                    continue
+                new_path = path + [(nr, nc)]
+                new_turns = self.count_turns(new_path)
+                if new_turns <= 2:
+                    accepted += 1
+                    queue.append(((nr, nc), new_path, new_turns))
+                    if (nr, nc) not in generated:
+                        generated.add((nr, nc))
+                        self.stats['generated'] = len(generated)
+                    if self.simulation_mode:
+                        self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
+                else:
+                    rejected_turns += 1
 
         self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+        if self.debug:
+            print(f"_simulate_bfs: candidates={total_candidates}, accepted={accepted}, rejected_turns={rejected_turns}, rejected_blocked={rejected_blocked}, generated={self.stats['generated']}, visited={self.stats['visited']}")
         self.simulation_steps.append(("none", None, None, None))
 
     def _simulate_ucs(self, start, goal):
         start_time = time.time()
         self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        total_candidates = 0
+        accepted = 0
+        rejected_turns = 0
+        rejected_blocked = 0
 
         pq = [(0, start, [start], 0)]
         visited = set()
-        generated = set()
+        generated = set([start])
+        self.stats['generated'] = 1
 
         while pq:
             cost, (r, c), path, turns = heapq.heappop(pq)
-            self.stats['generated'] += 1
-            generated.add((r, c))
+
+            if (r, c) in visited:
+                continue
+            visited.add((r, c))
+            self.stats['visited'] = len(visited)
 
             if self.simulation_mode:
                 self.simulation_steps.append(("visit", (r, c), path.copy(), turns))
@@ -148,25 +195,33 @@ class SearchAlgorithms:
             if (r, c) == goal and self.count_turns(path) <= 2:
                 self.stats['steps'] = len(path) - 1
                 self.stats['visited'] = len(visited)
+                self.stats['generated'] = len(generated)
                 self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
                 self.simulation_steps.append(("goal", (r, c), path.copy(), turns))
                 return
 
-            if (r, c) in visited:
-                continue
-            visited.add((r, c))
-
             for nr, nc, dr, dc in self.neighbors(r, c):
-                if self.board[nr][nc] == -1 or (nr, nc) == goal:
-                    new_path = path + [(nr, nc)]
-                    new_turns = self.count_turns(new_path)
-                    if new_turns <= 2:
-                        heapq.heappush(pq, (cost + 1, (nr, nc), new_path, new_turns))
-                        if self.simulation_mode:
-                            self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
+                total_candidates += 1
+                if not (self.board[nr][nc] == -1 or (nr, nc) == goal):
+                    rejected_blocked += 1
+                    continue
+                new_path = path + [(nr, nc)]
+                new_turns = self.count_turns(new_path)
+                if new_turns <= 2:
+                    accepted += 1
+                    heapq.heappush(pq, (cost + 1, (nr, nc), new_path, new_turns))
+                    if (nr, nc) not in generated:
+                        generated.add((nr, nc))
+                        self.stats['generated'] = len(generated)
+                    if self.simulation_mode:
+                        self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
+                else:
+                    rejected_turns += 1
 
         self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+        if self.debug:
+            print(f"_simulate_ucs: candidates={total_candidates}, accepted={accepted}, rejected_turns={rejected_turns}, rejected_blocked={rejected_blocked}, generated={self.stats['generated']}, visited={self.stats['visited']}")
         self.simulation_steps.append(("none", None, None, None))
 
     def _simulate_astar(self, start, goal):
@@ -176,14 +231,23 @@ class SearchAlgorithms:
         def h(a, b):
             return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
+        total_candidates = 0
+        accepted = 0
+        rejected_turns = 0
+        rejected_blocked = 0
+
         pq = [(h(start, goal), 0, start, [start], 0)]
         visited = set()
-        generated = set()
+        generated = set([start])
+        self.stats['generated'] = 1
 
         while pq:
             f, g, (r, c), path, turns = heapq.heappop(pq)
-            self.stats['generated'] += 1
-            generated.add((r, c))
+
+            if (r, c) in visited:
+                continue
+            visited.add((r, c))
+            self.stats['visited'] = len(visited)
 
             if self.simulation_mode:
                 self.simulation_steps.append(("visit", (r, c), path.copy(), turns))
@@ -191,27 +255,155 @@ class SearchAlgorithms:
             if (r, c) == goal and self.count_turns(path) <= 2:
                 self.stats['steps'] = len(path) - 1
                 self.stats['visited'] = len(visited)
+                self.stats['generated'] = len(generated)
                 self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
                 self.simulation_steps.append(("goal", (r, c), path.copy(), turns))
                 return
 
-            if (r, c) in visited:
-                continue
-            visited.add((r, c))
-
             for nr, nc, dr, dc in self.neighbors(r, c):
-                if self.board[nr][nc] == -1 or (nr, nc) == goal:
-                    new_path = path + [(nr, nc)]
-                    new_turns = self.count_turns(new_path)
-                    if new_turns <= 2:
-                        new_g = g + 1
-                        heapq.heappush(pq, (new_g + h((nr, nc), goal), new_g, (nr, nc), new_path, new_turns))
-                        if self.simulation_mode:
-                            self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
+                total_candidates += 1
+                if not (self.board[nr][nc] == -1 or (nr, nc) == goal):
+                    rejected_blocked += 1
+                    continue
+                new_path = path + [(nr, nc)]
+                new_turns = self.count_turns(new_path)
+                if new_turns <= 2:
+                    accepted += 1
+                    new_g = g + 1
+                    heapq.heappush(pq, (new_g + h((nr, nc), goal), new_g, (nr, nc), new_path, new_turns))
+                    if (nr, nc) not in generated:
+                        generated.add((nr, nc))
+                        self.stats['generated'] = len(generated)
+                    if self.simulation_mode:
+                        self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
+                else:
+                    rejected_turns += 1
 
         self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+        if self.debug:
+            print(f"_simulate_astar: candidates={total_candidates}, accepted={accepted}, rejected_turns={rejected_turns}, rejected_blocked={rejected_blocked}, generated={self.stats['generated']}, visited={self.stats['visited']}")
         self.simulation_steps.append(("none", None, None, None))
+
+    def _simulate_hill_climb(self, start, goal):
+        """Simple hill-climbing / greedy best-first style simulation toward the goal."""
+        start_time = time.time()
+        self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+
+        def h(a, b):
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+        current = start
+        path = [start]
+        visited = set([start])
+        generated = set()
+
+        # add initial visit
+        if self.simulation_mode:
+            self.simulation_steps.append(("visit", current, path.copy(), self.count_turns(path)))
+
+        while True:
+            if current == goal and self.count_turns(path) <= 2:
+                self.stats['steps'] = len(path) - 1
+                self.stats['visited'] = len(visited)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                self.simulation_steps.append(("goal", current, path.copy(), self.count_turns(path)))
+                return
+
+            # generate neighbors and pick the neighbor with lowest h (greedy)
+            neighbors = []
+            for nr, nc, dr, dc in self.neighbors(current[0], current[1]):
+                if self.board[nr][nc] == -1 or (nr, nc) == goal:
+                    if (nr, nc) not in visited:
+                        new_path = path + [(nr, nc)]
+                        new_turns = self.count_turns(new_path)
+                        if new_turns <= 2:
+                            neighbors.append(((nr, nc), new_path, new_turns))
+                        # count generated even if filtered by turns
+                        generated.add((nr, nc))
+
+            self.stats['generated'] = len(generated)
+
+            if not neighbors:
+                # stuck
+                self.stats['visited'] = len(visited)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                self.simulation_steps.append(("none", None, None, None))
+                return
+
+            # choose best neighbor by heuristic
+            neighbors.sort(key=lambda x: h(x[0], goal))
+            best, best_path, best_turns = neighbors[0]
+
+            # simulate expand step for each candidate (optional: show top candidate)
+            if self.simulation_mode:
+                for nb, nb_path, nb_turns in neighbors:
+                    self.simulation_steps.append(("expand", nb, nb_path.copy(), nb_turns))
+
+            # if no improvement in heuristic, we're stuck (hill climbing)
+            if h(best, goal) >= h(current, goal):
+                self.stats['visited'] = len(visited)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                self.simulation_steps.append(("none", None, None, None))
+                return
+
+            # move to best
+            current = best
+            path = best_path
+            visited.add(current)
+            if self.simulation_mode:
+                self.simulation_steps.append(("visit", current, path.copy(), best_turns))
+
+    def hill_climb(self, start, goal):
+        """Non-simulated hill-climbing path: greedy neighbor selection by Manhattan distance.
+        Returns path or None. Updates self.stats similarly to other methods."""
+        if self.simulation_mode:
+            return None
+        start_time = time.time()
+        self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+
+        def h(a, b):
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+        current = start
+        path = [start]
+        visited = set([start])
+        generated = set()
+
+        while True:
+            if current == goal and self.count_turns(path) <= 2:
+                self.stats['steps'] = len(path) - 1
+                self.stats['visited'] = len(visited)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                return path
+
+            neighbors = []
+            for nr, nc, dr, dc in self.neighbors(current[0], current[1]):
+                if self.board[nr][nc] == -1 or (nr, nc) == goal:
+                    if (nr, nc) not in visited:
+                        new_path = path + [(nr, nc)]
+                        new_turns = self.count_turns(new_path)
+                        if new_turns <= 2:
+                            neighbors.append(((nr, nc), new_path, new_turns))
+                        generated.add((nr, nc))
+
+            self.stats['generated'] = len(generated)
+
+            if not neighbors:
+                self.stats['visited'] = len(visited)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                return None
+
+            neighbors.sort(key=lambda x: h(x[0], goal))
+            best, best_path, best_turns = neighbors[0]
+            if h(best, goal) >= h(current, goal):
+                self.stats['visited'] = len(visited)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                return None
+
+            current = best
+            path = best_path
+            visited.add(current)
 
     def simulate_step(self):
         """Trả về bước tiếp theo trong quá trình simulation"""
@@ -270,22 +462,23 @@ class SearchAlgorithms:
 
         stack = [(start, [start], 0)]
         visited = set()
-        generated = set()
+        generated = set([start])
+        self.stats['generated'] = 1
 
         while stack:
             (r, c), path, turns = stack.pop()
-            self.stats['generated'] += 1
-            generated.add((r, c))
-
-            if (r, c) == goal and self.count_turns(path) <= 2:
-                self.stats['steps'] = len(path) - 1
-                self.stats['visited'] = len(visited)
-                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
-                return path
 
             if (r, c) in visited:
                 continue
             visited.add((r, c))
+            self.stats['visited'] = len(visited)
+
+            if (r, c) == goal and self.count_turns(path) <= 2:
+                self.stats['steps'] = len(path) - 1
+                self.stats['visited'] = len(visited)
+                self.stats['generated'] = len(generated)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                return path
 
             for nr, nc, dr, dc in self.neighbors(r, c):
                 if self.board[nr][nc] == -1 or (nr, nc) == goal:
@@ -293,6 +486,9 @@ class SearchAlgorithms:
                     new_turns = self.count_turns(new_path)
                     if new_turns <= 2:
                         stack.append(((nr, nc), new_path, new_turns))
+                        if (nr, nc) not in generated:
+                            generated.add((nr, nc))
+                            self.stats['generated'] = len(generated)
 
         self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
@@ -306,22 +502,23 @@ class SearchAlgorithms:
 
         queue = deque([(start, [start], 0)])
         visited = set()
-        generated = set()
+        generated = set([start])
+        self.stats['generated'] = 1
 
         while queue:
             (r, c), path, turns = queue.popleft()
-            self.stats['generated'] += 1
-            generated.add((r, c))
-
-            if (r, c) == goal and self.count_turns(path) <= 2:
-                self.stats['steps'] = len(path) - 1
-                self.stats['visited'] = len(visited)
-                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
-                return path
 
             if (r, c) in visited:
                 continue
             visited.add((r, c))
+            self.stats['visited'] = len(visited)
+
+            if (r, c) == goal and self.count_turns(path) <= 2:
+                self.stats['steps'] = len(path) - 1
+                self.stats['visited'] = len(visited)
+                self.stats['generated'] = len(generated)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                return path
 
             for nr, nc, dr, dc in self.neighbors(r, c):
                 if self.board[nr][nc] == -1 or (nr, nc) == goal:
@@ -329,6 +526,9 @@ class SearchAlgorithms:
                     new_turns = self.count_turns(new_path)
                     if new_turns <= 2:
                         queue.append(((nr, nc), new_path, new_turns))
+                        if (nr, nc) not in generated:
+                            generated.add((nr, nc))
+                            self.stats['generated'] = len(generated)
 
         self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
@@ -342,22 +542,23 @@ class SearchAlgorithms:
 
         pq = [(0, start, [start], 0)]
         visited = set()
-        generated = set()
+        generated = set([start])
+        self.stats['generated'] = 1
 
         while pq:
             cost, (r, c), path, turns = heapq.heappop(pq)
-            self.stats['generated'] += 1
-            generated.add((r, c))
-
-            if (r, c) == goal and self.count_turns(path) <= 2:
-                self.stats['steps'] = len(path) - 1
-                self.stats['visited'] = len(visited)
-                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
-                return path
 
             if (r, c) in visited:
                 continue
             visited.add((r, c))
+            self.stats['visited'] = len(visited)
+
+            if (r, c) == goal and self.count_turns(path) <= 2:
+                self.stats['steps'] = len(path) - 1
+                self.stats['visited'] = len(visited)
+                self.stats['generated'] = len(generated)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                return path
 
             for nr, nc, dr, dc in self.neighbors(r, c):
                 if self.board[nr][nc] == -1 or (nr, nc) == goal:
@@ -365,6 +566,9 @@ class SearchAlgorithms:
                     new_turns = self.count_turns(new_path)
                     if new_turns <= 2:
                         heapq.heappush(pq, (cost + 1, (nr, nc), new_path, new_turns))
+                        if (nr, nc) not in generated:
+                            generated.add((nr, nc))
+                            self.stats['generated'] = len(generated)
 
         self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
@@ -381,22 +585,23 @@ class SearchAlgorithms:
 
         pq = [(h(start, goal), 0, start, [start], 0)]
         visited = set()
-        generated = set()
+        generated = set([start])
+        self.stats['generated'] = 1
 
         while pq:
             f, g, (r, c), path, turns = heapq.heappop(pq)
-            self.stats['generated'] += 1
-            generated.add((r, c))
-
-            if (r, c) == goal and self.count_turns(path) <= 2:
-                self.stats['steps'] = len(path) - 1
-                self.stats['visited'] = len(visited)
-                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
-                return path
 
             if (r, c) in visited:
                 continue
             visited.add((r, c))
+            self.stats['visited'] = len(visited)
+
+            if (r, c) == goal and self.count_turns(path) <= 2:
+                self.stats['steps'] = len(path) - 1
+                self.stats['visited'] = len(visited)
+                self.stats['generated'] = len(generated)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                return path
 
             for nr, nc, dr, dc in self.neighbors(r, c):
                 if self.board[nr][nc] == -1 or (nr, nc) == goal:
@@ -405,6 +610,9 @@ class SearchAlgorithms:
                     if new_turns <= 2:
                         new_g = g + 1
                         heapq.heappush(pq, (new_g + h((nr, nc), goal), new_g, (nr, nc), new_path, new_turns))
+                        if (nr, nc) not in generated:
+                            generated.add((nr, nc))
+                            self.stats['generated'] = len(generated)
 
         self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
