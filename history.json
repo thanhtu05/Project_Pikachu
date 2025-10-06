@@ -94,5 +94,53 @@
     "visited": 63,
     "generated": 76,
     "time_ms": 0.7
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "DFS",
+    "mode": "Auto",
+    "moves": 32,
+    "time": 495,
+    "steps": 15,
+    "visited": 63,
+    "generated": 71,
+    "time_ms": 3.6
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "A*",
+    "mode": "Auto",
+    "moves": 32,
+    "time": 353,
+    "steps": 4,
+    "visited": 8,
+    "generated": 12,
+    "time_ms": 0.3
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "A*",
+    "mode": "Auto",
+    "moves": 32,
+    "time": 351,
+    "steps": 1,
+    "visited": 1,
+    "generated": 2,
+    "time_ms": 0.2
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "DFS",
+    "mode": "Auto",
+    "moves": 32,
+    "time": 425,
+    "steps": 14,
+    "visited": 53,
+    "generated": 60,
+    "time_ms": 2.8
   }
 ]

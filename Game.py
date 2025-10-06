@@ -8,7 +8,6 @@ from PIL import Image, ImageTk
 import pygame
 import json
 import os
-from WinScreen import WinScreen
 
 
 class PikachuGame:
@@ -19,7 +18,7 @@ class PikachuGame:
         self.cell_size = 60
         self.click_tolerance = 15  # Vùng click mở rộng xung quanh mỗi ô
         self.icons = self.load_icons("icons", 15)
-        self.moves = 0
+        self.cost = 0
         self.time_elapsed = 0
         self.timer_running = False
         self.game_paused = False
@@ -29,7 +28,6 @@ class PikachuGame:
         self.history_file = "history.json"
         self.highlighted_cells = []  # Danh sách các ô đang được highlight
         self.background_revealed = 0  # Số ô đã được xóa (để lộ background)
-        self.initial_board = None
 
         self.simulation_highlights = []  # Lưu các highlight trong simulation
 
@@ -57,7 +55,6 @@ class PikachuGame:
 
         self.image_ids = {}
         self.new_game()
-        self.win_screen = None
 
     def go_to_splash_screen(self):
         """Quay về giao diện SplashScreen và dừng trò chơi hiện tại."""
@@ -100,26 +97,23 @@ class PikachuGame:
             icons[i] = ImageTk.PhotoImage(img)
         return icons
 
-    def new_game(self, restore_initial=False):
+    def new_game(self):
+        """Khởi tạo game mới - reset cả simulation"""
         self.auto_running = False
         self.game_paused = False
-        self.moves = 0
+        self.cost = 0
         self.time_elapsed = 0
-        self.ui.moves_label.config(text="Moves: 0")
+        self.ui.moves_label.config(text="Cost: 0")
         self.ui.time_label.config(text="Time: 0s")
         self.selected = []
         self.clear_highlights()
         self.clear_simulation_highlights()
         self.background_revealed = 0
-        if not restore_initial:
-            self.board.new_board()  # Tạo bảng mới ngẫu nhiên
-            if self.initial_board is None:  # Lưu trạng thái ban đầu chỉ lần đầu
-                self.initial_board = [row[:] for row in self.board.board]
-        else:
-            self.board.restore_initial()  # Khôi phục bảng ban đầu
+        self.board.new_board()
         self.algorithms.board = self.board.board
         self.algorithms.reset_simulation()
 
+        # Vẽ lại bảng
         self.ui.canvas.delete("all")
         w, h = self.cols * self.cell_size, self.rows * self.cell_size
         for r in range(self.rows + 1):
@@ -208,7 +202,7 @@ class PikachuGame:
                     path = self.get_path((r1, c1), (r2, c2), algo)
                     if path:
                         self.draw_lightning(path)
-                        self.root.after(350, lambda: self.remove_pair_and_check(r1, c1, r2, c2))
+                        self.root.after(350, lambda: self.remove_pair_and_check(r1, c1, r2, c2, path))
                     else:
                         self.selected = []
                         self.clear_highlights()
@@ -416,10 +410,6 @@ class PikachuGame:
         step = self.algorithms.simulate_step()
         if step:
             action, pos, path, turns = step
-
-            # Hiển thị thông tin debug
-            print(f"Simulation step: {action}, pos: {pos}, path length: {len(path) if path else 0}, turns: {turns}")
-
             if action == "visit":
                 # Tô sáng ô được thăm (màu vàng)
                 if pos:
@@ -438,7 +428,7 @@ class PikachuGame:
                     r2, c2 = path[-1]
                     # Hiển thị đường đi cuối cùng
                     self.draw_final_path(path)
-                    self.root.after(1000, lambda: self.remove_pair_and_check(r1, c1, r2, c2, auto=True))
+                    self.root.after(1000, lambda: self.remove_pair_and_check(r1, c1, r2, c2, path, auto=True))
                     return
 
             elif action == "none":
@@ -574,14 +564,11 @@ class PikachuGame:
         (r1, c1), (r2, c2), path = pair
         self.play_sound("select")
         self.draw_lightning(path)
-        self.root.after(350, lambda: self.remove_pair_and_check(r1, c1, r2, c2, auto=True))
+        self.root.after(350, lambda: self.remove_pair_and_check(r1, c1, r2, c2, path, auto=True))
 
-    def remove_pair_and_check(self, r1, c1, r2, c2, auto=False):
+    def remove_pair_and_check(self, r1, c1, r2, c2, path=None, auto=False):
         self.board.remove_pair(r1, c1, r2, c2)
-
-        # Clear simulation highlights
         self.clear_simulation_highlights()
-
         if (r1, c1) in self.image_ids:
             self.ui.canvas.delete(self.image_ids[(r1, c1)])
             del self.image_ids[(r1, c1)]
@@ -589,26 +576,27 @@ class PikachuGame:
             self.ui.canvas.delete(self.image_ids[(r2, c2)])
             del self.image_ids[(r2, c2)]
         self.play_sound("eat")
-        self.moves += 1
-        self.ui.moves_label.config(text=f"Moves: {self.moves}")
+        path_length = len(path) - 1 if path and len(path) > 1 else 1  # Tính chiều dài đường đi
+        self.update_cost(path_length)
         self.selected = []
         self.clear_highlights()
-
         self.background_revealed += 2
         self.update_background_overlay()
-
         if not self.board.get_cells():
             self.win_game()
         elif auto:
             self.root.after(400, self.continue_auto_play)
 
+    def update_cost(self, path_length):
+        """Cập nhật cost dựa trên chiều dài đường đi."""
+        self.cost += path_length
+        self.ui.moves_label.config(text=f"Cost: {self.cost}")
+
     def win_game(self):
         self.stop_timer()
         self.play_sound("win")
         self.save_history_entry()
-        # Tạo và hiển thị WinScreen
-        self.win_screen = WinScreen(self.root, self, self.moves, self.time_elapsed)
-        self.win_screen.show()
+        messagebox.showinfo("Chiến Thắng!", f"Bạn đã thắng!\nSố moves: {self.moves}\nThời gian: {self.time_elapsed}s")
 
     # ---------- History ----------
     def load_history(self):

@@ -45,7 +45,7 @@ class GameUI:
         # Labels
         self.moves_label = tk.Label(
             self.bg_canvas,
-            text="Moves: 0",
+            text="Cost: 0",
             fg="#E74C3C",
             bg="#FFFFFF",
             font=("Arial", 12, "bold")
@@ -176,19 +176,16 @@ class GameUI:
         )
         self.history_btn_window = self.bg_canvas.create_window(start_x + 4 * (button_spacing + button_width), 60, window=self.history_btn, anchor="nw")
 
-        # Thêm nút Home với ModernButton
-        from SplashScreen import ModernButton  # Import ModernButton
-        self.home_btn = ModernButton(
+        #nút Home
+        self.home_btn = tk.Button(
+
             self.bg_canvas,
             text="🏠 Home",
-            command=self.game.go_to_splash_screen,  # Giả định game có phương thức go_to_splash_screen
-            width=120,
-            height=40,
-            bg_color="#EF4444",  # Màu đỏ tương tự nút HARD
-            hover_color="#DC2626",  # Màu hover đậm hơn
-            text_color="white",
-            font=("Segoe UI", 12, "bold"),
-            radius=20
+            bg="#27AE60",
+            fg="white",
+            activebackground="#229954",
+            activeforeground="white",
+            **button_style
         )
         self.home_btn_window = self.bg_canvas.create_window(
             start_x + 5 * (button_spacing + button_width), 60,  # Vị trí cuối cùng
