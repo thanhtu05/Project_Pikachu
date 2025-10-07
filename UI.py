@@ -149,10 +149,9 @@ class GameUI:
                                       values=["DFS", "BFS", "UCS", "A*", "HillClimb"], state="readonly", width=10, style="Rounded.TCombobox")
         self.algo_menu_window = self.bg_canvas.create_window(630, 12, window=self.algo_menu, anchor="nw")
         
-        # Add rounded background for algo dropdown
+        # Add framed selector panel for Algorithm (arcade style)
         try:
-            self.algo_bg = self.bg_canvas.create_oval(610, 5, 690, 25, fill="#2D3748", outline="#C8C8DC", width=2)
-            self.bg_canvas.tag_lower(self.algo_bg)
+            self._create_algo_panel(self.algo_menu_window, title="Algorithm", base="#2D3748", border="#66FCF1", glow="#A0E7E5")
         except Exception:
             pass
 
@@ -246,28 +245,45 @@ class GameUI:
         # --- Enhance buttons with rounded backgrounds and hover/press effects ---
         try:
             self._button_bg_rects = {}
+            self._button_anims = {}
             # Cohesive dark arcade color scheme
             self._decorate_button(self.new_btn, self.new_btn_window,
                                   normal="#2D3748", hover="#4A5568", active="#1A202C", text="#E2E8F0", 
                                   glow="#3182CE", shadow="#1A202C")
+            self._attach_arcade_text(self.new_btn, self.new_btn_window, label="🆕 New Game",
+                                      main="#FFFFFF", outline="#000000")
             self._decorate_button(self.auto_btn, self.auto_btn_window,
                                   normal="#38A169", hover="#48BB78", active="#2F855A", text="#F7FAFC", 
                                   glow="#68D391", shadow="#2F855A")
+            self._attach_arcade_text(self.auto_btn, self.auto_btn_window, label="▶️ Start Auto",
+                                      main="#0B0C10", outline="#FFFFFF")
             self._decorate_button(self.skip_btn, self.skip_btn_window,
                                   normal="#D69E2E", hover="#F6AD55", active="#B7791F", text="#1A202C", 
                                   glow="#FBD38D", shadow="#B7791F")
+            self._attach_arcade_text(self.skip_btn, self.skip_btn_window, label="⏭️ Skip",
+                                      main="#0B0C10", outline="#FFFFFF")
             self._decorate_button(self.stop_btn, self.stop_btn_window,
                                   normal="#E53E3E", hover="#FC8181", active="#C53030", text="#F7FAFC", 
                                   glow="#FEB2B2", shadow="#C53030")
+            self._attach_arcade_text(self.stop_btn, self.stop_btn_window, label="⏹️ Stop",
+                                      main="#FFFFFF", outline="#000000")
             self._decorate_button(self.continue_btn, self.continue_btn_window,
                                   normal="#805AD5", hover="#9F7AEA", active="#6B46C1", text="#F7FAFC", 
                                   glow="#B794F6", shadow="#6B46C1")
+            self._attach_arcade_text(self.continue_btn, self.continue_btn_window, label="▶️ Continue",
+                                      main="#FFFFFF", outline="#000000")
             self._decorate_button(self.history_btn, self.history_btn_window,
                                   normal="#2B6CB0", hover="#4299E1", active="#2C5282", text="#F7FAFC", 
                                   glow="#90CDF4", shadow="#2C5282")
+            self._attach_arcade_text(self.history_btn, self.history_btn_window, label="📊 History",
+                                      main="#FFFFFF", outline="#000000")
             self._decorate_button(self.home_btn, self.home_btn_window,
                                   normal="#38A169", hover="#48BB78", active="#2F855A", text="#F7FAFC", 
                                   glow="#68D391", shadow="#2F855A")
+            self._attach_arcade_text(self.home_btn, self.home_btn_window, label="🏠 Home",
+                                      main="#0B0C10", outline="#FFFFFF")
+            # Start animation loop for pulsing glow
+            self._schedule_button_animation()
         except Exception:
             pass
 
@@ -371,7 +387,7 @@ class GameUI:
             self.bg_canvas.tag_lower(border_id)
             
             # Create glow effect (initially hidden)
-            glow_id = self._create_round_rect(x1 - pad - 5, y1 - pad - 5, x2 + pad + 5, y2 + pad + 5, 
+            glow_id = self._create_round_rect(x1 - pad - 6, y1 - pad - 6, x2 + pad + 6, y2 + pad + 6, 
                                             fill=glow, outline="")
             self.bg_canvas.tag_lower(glow_id)
             self.bg_canvas.itemconfig(glow_id, state="hidden")
@@ -381,6 +397,9 @@ class GameUI:
                 "rect": rect_id, "shadow": shadow_id, "glow": glow_id, "border": border_id,
                 "normal": normal, "hover": hover, "active": active
             }
+
+            # Track animation state
+            self._button_anims[btn] = {"phase": 0.0, "hover": False, "window": window_id}
 
             # Enhanced animation effects with text glow
             def animate_color(target_color, glow_state="hidden", scale=1.0):
@@ -401,11 +420,17 @@ class GameUI:
                 # Show glow effect with enhanced shadow
                 self.bg_canvas.itemconfig(glow_id, state="normal")
                 animate_color(hover, "normal", 1.08)
+                st = self._button_anims.get(btn)
+                if st is not None:
+                    st["hover"] = True
 
             def on_leave(_e):
                 # Hide glow effect
                 self.bg_canvas.itemconfig(glow_id, state="hidden")
                 animate_color(normal, "hidden", 1.0)
+                st = self._button_anims.get(btn)
+                if st is not None:
+                    st["hover"] = False
 
             def on_press(_e):
                 animate_color(active, "normal", 0.96)
@@ -448,6 +473,94 @@ class GameUI:
             btn.bind("<ButtonPress-1>", lambda e: [on_press(e), on_press_scale(e)])
             btn.bind("<ButtonRelease-1>", lambda e: [on_release(e), on_release_scale(e)])
             
+        except Exception:
+            pass
+
+    def _schedule_button_animation(self):
+        try:
+            for btn, st in list(self._button_anims.items()):
+                st["phase"] = (st.get("phase", 0.0) + 0.18) % 6.283
+                info = self._button_bg_rects.get(btn)
+                if not info:
+                    continue
+                glow_id = info["glow"]
+                rect_id = info["rect"]
+                window_id = st.get("window")
+                # Pulse only when hovered
+                if st.get("hover"):
+                    # Adjust glow size subtly
+                    try:
+                        bbox = self.bg_canvas.bbox(window_id)
+                        if bbox:
+                            x1, y1, x2, y2 = bbox
+                            pad = 15
+                            pulse = 3 + int(2 * (1 + __import__("math").sin(st["phase"])) )
+                            self.bg_canvas.coords(glow_id, x1 - pad - pulse, y1 - pad - pulse, x2 + pad + pulse, y2 + pad + pulse)
+                    except Exception:
+                        pass
+                else:
+                    # Reset to default size
+                    try:
+                        bbox = self.bg_canvas.bbox(window_id)
+                        if bbox:
+                            x1, y1, x2, y2 = bbox
+                            pad = 15
+                            self.bg_canvas.coords(glow_id, x1 - pad - 6, y1 - pad - 6, x2 + pad + 6, y2 + pad + 6)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        # Schedule next frame
+        try:
+            self.root.after(33, self._schedule_button_animation)
+        except Exception:
+            pass
+
+    def _attach_arcade_text(self, btn, window_id, label, main="#FFFFFF", outline="#000000"):
+        """Overlay outlined text on top of a button, similar to Pac-Man UI. Stored for hover color tweaks."""
+        try:
+            if not hasattr(self, "_button_texts"):
+                self._button_texts = {}
+            self.root.update_idletasks()
+            bbox = self.bg_canvas.bbox(window_id)
+            if not bbox:
+                return
+            x1, y1, x2, y2 = bbox
+            cx = (x1 + x2) // 2
+            cy = (y1 + y2) // 2
+            # Create outline layers
+            font = ("Arial", 11, "bold")
+            ids = []
+            for dx, dy in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
+                tid = self.bg_canvas.create_text(cx + dx, cy + dy, text=label, fill=outline, font=font)
+                ids.append(tid)
+            main_id = self.bg_canvas.create_text(cx, cy, text=label, fill=main, font=font)
+            ids.append(main_id)
+            for tid in ids:
+                self.bg_canvas.tag_raise(tid)
+            self._button_texts[btn] = {"ids": ids, "main": main, "outline": outline, "window": window_id, "label": label}
+
+            # Sync position on enter/leave in case of minor animations
+            def refresh_position():
+                try:
+                    bbox2 = self.bg_canvas.bbox(window_id)
+                    if not bbox2:
+                        return
+                    xx1, yy1, xx2, yy2 = bbox2
+                    ccx = (xx1 + xx2) // 2
+                    ccy = (yy1 + yy2) // 2
+                    for i, (dx, dy) in enumerate([(-1, -1), (-1, 1), (1, -1), (1, 1)]):
+                        self.bg_canvas.coords(ids[i], ccx + dx, ccy + dy)
+                    self.bg_canvas.coords(ids[-1], ccx, ccy)
+                except Exception:
+                    pass
+
+            def on_enter(_e):
+                refresh_position()
+            def on_leave(_e):
+                refresh_position()
+            btn.bind("<Enter>", on_enter)
+            btn.bind("<Leave>", on_leave)
         except Exception:
             pass
 
@@ -498,6 +611,68 @@ class GameUI:
             return panel
         except Exception:
             return None
+
+    def _create_algo_panel(self, combo_window_id, title="Algorithm", base="#2D3748", border="#66FCF1", glow="#A0E7E5"):
+        """Draw a rounded framed panel behind the algorithm combobox with outlined title and glow on focus."""
+        # Measure combobox bbox and draw a pill panel a bit larger with title at left
+        self.root.update_idletasks()
+        bbox = self.bg_canvas.bbox(combo_window_id)
+        if not bbox:
+            return
+        x1, y1, x2, y2 = bbox
+        pad_x, pad_y = 18, 10
+        panel_x1 = x1 - pad_x
+        panel_y1 = y1 - pad_y
+        panel_x2 = x2 + pad_x
+        panel_y2 = y2 + pad_y
+
+        # Shadow
+        shadow = self._create_round_rect(panel_x1 + 3, panel_y1 + 3, panel_x2 + 3, panel_y2 + 3, fill="#000000", outline="")
+        self.bg_canvas.tag_lower(shadow)
+        # Base
+        panel = self._create_round_rect(panel_x1, panel_y1, panel_x2, panel_y2, fill=base, outline="")
+        self.bg_canvas.tag_lower(panel)
+        # Border
+        border_id = self._create_round_rect(panel_x1, panel_y1, panel_x2, panel_y2, fill="", outline=border, width=2)
+        self.bg_canvas.tag_lower(border_id)
+        # Glow (hidden)
+        glow_id = self._create_round_rect(panel_x1 - 6, panel_y1 - 6, panel_x2 + 6, panel_y2 + 6, fill=glow, outline="")
+        self.bg_canvas.tag_lower(glow_id)
+        self.bg_canvas.itemconfig(glow_id, state="hidden")
+
+        # Outlined title text on left
+        title_x = panel_x1 + 12
+        title_y = (panel_y1 + panel_y2) // 2
+        outline_ids = []
+        for dx, dy in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
+            outline_ids.append(self.bg_canvas.create_text(title_x + dx, title_y + dy, text=title, fill="#000000", font=("Arial", 10, "bold"), anchor="w"))
+        title_id = self.bg_canvas.create_text(title_x, title_y, text=title, fill="#FFFFFF", font=("Arial", 10, "bold"), anchor="w")
+        for tid in outline_ids + [title_id]:
+            self.bg_canvas.tag_raise(tid)
+
+        # Keep references for interaction
+        self._algo_panel = {"panel": panel, "border": border_id, "glow": glow_id, "title": title_id, "outline": outline_ids}
+
+        # Bind focus/hover to show glow
+        def show_glow(_=None):
+            try:
+                self.bg_canvas.itemconfig(glow_id, state="normal")
+            except Exception:
+                pass
+        def hide_glow(_=None):
+            try:
+                self.bg_canvas.itemconfig(glow_id, state="hidden")
+            except Exception:
+                pass
+        # Attach to combobox events
+        try:
+            widget = self.algo_menu
+            widget.bind("<Enter>", show_glow)
+            widget.bind("<Leave>", hide_glow)
+            widget.bind("<FocusIn>", show_glow)
+            widget.bind("<FocusOut>", hide_glow)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

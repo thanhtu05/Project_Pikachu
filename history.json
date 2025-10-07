@@ -138,5 +138,19 @@
     "time_ms": 7.6,
     "state_key": "a07d849a439afe6145038e3fa58943f9",
     "state": 7
+  },
+  {
+    "rows": 8,
+    "cols": 8,
+    "algo": "DFS",
+    "mode": "Manual",
+    "cost": 206,
+    "time": 237,
+    "steps": 20,
+    "visited": 56,
+    "generated": 57,
+    "time_ms": 1.6,
+    "state_key": "dc8338e1efb2ea3c6cbd4f405baa1f79",
+    "state": 8
   }
 ]
