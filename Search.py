@@ -177,8 +177,8 @@ class SearchAlgorithms:
         rejected_blocked = 0
 
         pq = [(0, start, [start], 0)]
-        visited = set()
-        generated = set([start])
+        visited = 0
+        generated = 0
         self.stats['generated'] = 1
 
         while pq:
@@ -295,8 +295,8 @@ class SearchAlgorithms:
 
         current = start
         path = [start]
-        visited = set([start])
-        generated = set()
+        visited = 0
+        generated = 0
 
         # add initial visit
         if self.simulation_mode:
@@ -367,13 +367,13 @@ class SearchAlgorithms:
 
         current = start
         path = [start]
-        visited = set([start])
-        generated = set()
+        visited = 0
+        generated = 0
 
         while True:
             if current == goal and self.count_turns(path) <= 2:
                 self.stats['steps'] = len(path) - 1
-                self.stats['visited'] = len(visited)
+                self.stats['visited'] += 1
                 self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
                 return path
 
@@ -461,8 +461,8 @@ class SearchAlgorithms:
         self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
 
         stack = [(start, [start], 0)]
-        visited = set()
-        generated = set([start])
+        visited = 0
+        generated = 0
         self.stats['generated'] = 1
 
         while stack:
@@ -501,8 +501,8 @@ class SearchAlgorithms:
         self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
 
         queue = deque([(start, [start], 0)])
-        visited = set()
-        generated = set([start])
+        visited = 0
+        generated = 0
         self.stats['generated'] = 1
 
         while queue:

@@ -59,6 +59,7 @@ class PikachuGame:
         self.bg_canvas = self.ui.canvas
         self.ui.new_btn.config(command=self.new_game)
         self.ui.auto_btn.config(command=self.start_auto)
+        self.ui.home_btn.config(command=self.go_to_splash_screen)
         # Connect skip button (if present)
         try:
             self.ui.skip_btn.config(command=self.skip_simulation)
