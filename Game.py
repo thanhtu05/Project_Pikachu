@@ -35,6 +35,7 @@ class PikachuGame:
         self.initial_board = None   #lưu bảng ban đầu
 
         self.simulation_highlights = []  # Lưu các highlight trong simulation
+        self.game_won = False  #trạng thái thắng
 
         pygame.mixer.init()
         self.sounds = {
@@ -180,14 +181,11 @@ class PikachuGame:
         self.start_timer()
 
     def stop_game(self):
-        self.game_paused = True
-        self.stop_timer()
+        """Dừng trò chơi và chế độ tự động"""
         self.auto_running = False
-        # disable skip when stopping
-        try:
-            self.set_skip_enabled(False)
-        except Exception:
-            pass
+        if hasattr(self, 'auto_timer'):
+            self.root.after_cancel(self.auto_timer)  # Hủy timer tự động
+        self.game_paused = True
 
     def continue_game(self):
         if self.game_paused:
@@ -484,64 +482,54 @@ class PikachuGame:
         self.root.after(300, lambda: [self.ui.canvas.delete(line), self.ui.canvas.delete(glow_line)])
 
     def start_auto(self):
-        if self.game_paused:
+        if self.game_paused or self.game_won:
             return
         if self.ui.mode_var.get() != "Auto":
             return
 
         self.auto_running = True
-        self.algorithms.simulation_mode = True  # Bật chế độ simulation
-        self.simulate_auto_step()  # Bắt đầu simulation tự động
-        # enable skip while auto running
+        self.algorithms.simulation_mode = True
+        self.simulate_auto_step()
         try:
             self.set_skip_enabled(True)
         except Exception:
             pass
 
     def simulate_auto_step(self):
-        """Thực hiện một bước simulation"""
-        if self.game_paused or not self.auto_running:
+        if self.game_paused or not self.auto_running or self.game_won:
             return
 
         step = self.algorithms.simulate_step()
         if step:
             action, pos, path, turns = step
             if action == "visit":
-                # Tô sáng ô được thăm (màu vàng)
                 if pos:
                     r, c = pos
                     self.highlight_visited_cell(r, c)
 
             elif action == "expand":
-                # Vẽ đường đi tạm thời
                 if path and len(path) > 1:
                     self.draw_temporary_path(path)
 
             elif action == "goal":
-                # Tìm thấy đường đi, xóa cặp
                 if path and len(path) >= 2:
                     r1, c1 = path[0]
                     r2, c2 = path[-1]
-                    # Hiển thị đường đi cuối cùng
                     self.draw_final_path(path)
                     self.root.after(1000, lambda: self.remove_pair_and_check(r1, c1, r2, c2, path, auto=True))
                     return
 
             elif action == "none":
-                # Không tìm thấy đường đi
                 self.show_no_path_message()
                 self.root.after(1500, self.continue_auto_play)
                 return
 
-            # Tiếp tục với bước tiếp theo sau delay
-            delay = 300  # 300ms giữa các bước
-            self.root.after(delay, self.simulate_auto_step)
+            delay = 300
+            self.auto_timer = self.root.after(delay, self.simulate_auto_step)
         else:
-            # Simulation kết thúc
             self.algorithms.reset_simulation()
             self.clear_highlights()
             self.clear_simulation_highlights()
-            # disable skip when simulation ends
             try:
                 self.set_skip_enabled(False)
             except Exception:
@@ -668,7 +656,7 @@ class PikachuGame:
             self.root.after(200, lambda: self.ui.canvas.delete(line))
 
     def continue_auto_play(self):
-        if not self.auto_running:
+        if not self.auto_running or self.game_won:
             return
         algo = self.ui.algo_var.get()
         pair = self.find_pair(algo)
@@ -678,7 +666,7 @@ class PikachuGame:
             self.simulate_auto_step()
         else:
             remaining_cells = self.board.get_cells()
-            print(f"Remaining cells after pair search: {remaining_cells}")  # Debug
+            print(f"Remaining cells after pair search: {remaining_cells}")
             if remaining_cells:
                 self.board.reshuffle_remaining()
                 self.redraw_remaining_icons()
@@ -720,6 +708,9 @@ class PikachuGame:
         self.root.after(350, lambda: self.remove_pair_and_check(r1, c1, r2, c2, path, auto=True))
 
     def remove_pair_and_check(self, r1, c1, r2, c2, path=None, auto=False):
+        if self.game_won:  # Ngăn xử lý nếu đã thắng
+            return
+
         self.board.remove_pair(r1, c1, r2, c2)
         self.clear_simulation_highlights()
         if (r1, c1) in self.image_ids:
@@ -730,14 +721,14 @@ class PikachuGame:
             del self.image_ids[(r2, c2)]
         self.play_sound("eat")
         path_length = len(path) - 1 if path and len(path) > 1 else 1
-        self.update_cost(path_length)  # Cập nhật cost
+        self.update_cost(path_length)
         self.selected = []
         self.clear_highlights()
         self.background_revealed += 2
         self.update_background_overlay()
-        if not self.board.get_cells():
+        if not self.board.get_cells() and not self.game_won:
             self.win_game()
-        elif auto:
+        elif auto and not self.game_won:
             self.root.after(400, self.continue_auto_play)
 
     def update_cost(self, path_length):
@@ -746,11 +737,19 @@ class PikachuGame:
         self.ui.moves_label.config(text=f"Cost: {self.cost}")
 
     def win_game(self):
+        if self.game_won:  # Ngăn gọi lặp
+            return
+        self.game_won = True
+        self.auto_running = False
         self.stop_timer()
         self.play_sound("win")
         self.save_history_entry()
-        self.win_screen = WinScreen(self.root, self, self.cost, self.time_elapsed)  # Sử dụng WinScreen
+        self.win_screen = WinScreen(self.root, self, self.cost, self.time_elapsed)
         self.win_screen.show()
+        # Hủy tất cả sự kiện after còn lại
+        self.root.after_cancel(self._timer_after_id) if hasattr(self, '_timer_after_id') else None
+        if hasattr(self, 'auto_timer'):
+            self.root.after_cancel(self.auto_timer)
 
     # ---------- History ----------
     def load_history(self):

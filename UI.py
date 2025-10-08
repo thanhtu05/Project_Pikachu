@@ -86,22 +86,13 @@ class GameUI:
         except Exception:
             pass
             
-        # Enhanced neon title with multiple glow layers
-        try:
-            # Multiple shadow layers for depth
-            self.bg_canvas.create_text(24, 16, text="PIKACHU", fill="#000000", font=("Arial", 20, "bold"), anchor="nw")
-            self.bg_canvas.create_text(23, 15, text="PIKACHU", fill="#1A202C", font=("Arial", 20, "bold"), anchor="nw")
-            self.bg_canvas.create_text(22, 14, text="PIKACHU", fill="#2D3748", font=("Arial", 20, "bold"), anchor="nw")
-            # Main text with glow
-            self.bg_canvas.create_text(20, 12, text="PIKACHU", fill="#66FCF1", font=("Arial", 20, "bold"), anchor="nw")
-            # Inner glow
-            self.bg_canvas.create_text(20, 12, text="PIKACHU", fill="#A0E7E5", font=("Arial", 18, "bold"), anchor="nw")
-        except Exception:
-            pass
+
+        self.bg_canvas.create_text(20, 12, text="PIKACHU", fill="#A0E7E5", font=("Arial", 18, "bold"), anchor="nw")
+
         # Enhanced status labels with text effects
         self.moves_label = tk.Label(self.bg_canvas, text="Cost: 0", fg="#FFD166", bg="#0B0C10",
                                     font=("Arial", 12, "bold"), relief="flat", bd=0)
-        self.moves_label_window = self.bg_canvas.create_window(100, 12, window=self.moves_label, anchor="nw")
+        self.moves_label_window = self.bg_canvas.create_window(120, 12, window=self.moves_label, anchor="nw")
         
         # Add text shadow effect to cost label
         try:
@@ -246,40 +237,24 @@ class GameUI:
         try:
             self._button_bg_rects = {}
             self._button_anims = {}
-            # Cohesive dark arcade color scheme
-            self._decorate_button(self.new_btn, self.new_btn_window,
-                                  normal="#2D3748", hover="#4A5568", active="#1A202C", text="#E2E8F0", 
-                                  glow="#3182CE", shadow="#1A202C")
             self._attach_arcade_text(self.new_btn, self.new_btn_window, label="🆕 New Game",
                                       main="#FFFFFF", outline="#000000")
-            self._decorate_button(self.auto_btn, self.auto_btn_window,
-                                  normal="#38A169", hover="#48BB78", active="#2F855A", text="#F7FAFC", 
-                                  glow="#68D391", shadow="#2F855A")
+
             self._attach_arcade_text(self.auto_btn, self.auto_btn_window, label="▶️ Start Auto",
                                       main="#0B0C10", outline="#FFFFFF")
-            self._decorate_button(self.skip_btn, self.skip_btn_window,
-                                  normal="#D69E2E", hover="#F6AD55", active="#B7791F", text="#1A202C", 
-                                  glow="#FBD38D", shadow="#B7791F")
+
             self._attach_arcade_text(self.skip_btn, self.skip_btn_window, label="⏭️ Skip",
                                       main="#0B0C10", outline="#FFFFFF")
-            self._decorate_button(self.stop_btn, self.stop_btn_window,
-                                  normal="#E53E3E", hover="#FC8181", active="#C53030", text="#F7FAFC", 
-                                  glow="#FEB2B2", shadow="#C53030")
+
             self._attach_arcade_text(self.stop_btn, self.stop_btn_window, label="⏹️ Stop",
                                       main="#FFFFFF", outline="#000000")
-            self._decorate_button(self.continue_btn, self.continue_btn_window,
-                                  normal="#805AD5", hover="#9F7AEA", active="#6B46C1", text="#F7FAFC", 
-                                  glow="#B794F6", shadow="#6B46C1")
+
             self._attach_arcade_text(self.continue_btn, self.continue_btn_window, label="▶️ Continue",
                                       main="#FFFFFF", outline="#000000")
-            self._decorate_button(self.history_btn, self.history_btn_window,
-                                  normal="#2B6CB0", hover="#4299E1", active="#2C5282", text="#F7FAFC", 
-                                  glow="#90CDF4", shadow="#2C5282")
+
             self._attach_arcade_text(self.history_btn, self.history_btn_window, label="📊 History",
                                       main="#FFFFFF", outline="#000000")
-            self._decorate_button(self.home_btn, self.home_btn_window,
-                                  normal="#38A169", hover="#48BB78", active="#2F855A", text="#F7FAFC", 
-                                  glow="#68D391", shadow="#2F855A")
+
             self._attach_arcade_text(self.home_btn, self.home_btn_window, label="🏠 Home",
                                       main="#0B0C10", outline="#FFFFFF")
             # Start animation loop for pulsing glow
@@ -354,127 +329,6 @@ class GameUI:
         except Exception:
             # Fallback to simple rounded rectangle
             return self.bg_canvas.create_oval(x1, y1, x2, y2, **kwargs)
-
-    def _decorate_button(self, btn, window_id, normal="#118AB2", hover="#0FA3C8", active="#073B4C", text="#FFFFFF", glow="#FFFFFF", shadow="#000000"):
-        # Make button completely transparent to show only our custom rounded background
-        try:
-            btn.configure(relief="flat", bd=0, highlightthickness=0, fg=text, bg="", activebackground="")
-        except Exception:
-            pass
-
-        # Ensure geometry is computed
-        try:
-            self.root.update_idletasks()
-            bbox = self.bg_canvas.bbox(window_id)
-            if not bbox:
-                return
-            x1, y1, x2, y2 = bbox
-            pad = 15
-            
-            # Create shadow effect
-            shadow_id = self._create_round_rect(x1 - pad + 3, y1 - pad + 3, x2 + pad + 3, y2 + pad + 3, 
-                                             fill="#000000", outline="", state="disabled")
-            self.bg_canvas.tag_lower(shadow_id)
-            
-            # Create main button background - perfect pill shape
-            rect_id = self._create_round_rect(x1 - pad, y1 - pad, x2 + pad, y2 + pad, 
-                                            fill=normal, outline="", state="disabled")
-            self.bg_canvas.tag_lower(rect_id)
-            
-            # Create border with neon effect
-            border_id = self._create_round_rect(x1 - pad, y1 - pad, x2 + pad, y2 + pad, 
-                                              fill="", outline="#C8C8DC", width=2, state="disabled")
-            self.bg_canvas.tag_lower(border_id)
-            
-            # Create glow effect (initially hidden)
-            glow_id = self._create_round_rect(x1 - pad - 6, y1 - pad - 6, x2 + pad + 6, y2 + pad + 6, 
-                                            fill=glow, outline="", state="disabled")
-            self.bg_canvas.tag_lower(glow_id)
-            self.bg_canvas.itemconfig(glow_id, state="hidden")
-            
-            # Keep mapping and initial colors
-            self._button_bg_rects[btn] = {
-                "rect": rect_id, "shadow": shadow_id, "glow": glow_id, "border": border_id,
-                "normal": normal, "hover": hover, "active": active
-            }
-
-            # Track animation state
-            self._button_anims[btn] = {"phase": 0.0, "hover": False, "window": window_id}
-
-            # Enhanced animation effects with text glow
-            def animate_color(target_color, glow_state="hidden", scale=1.0):
-                try:
-                    self.bg_canvas.itemconfig(rect_id, fill=target_color)
-                    self.bg_canvas.itemconfig(glow_id, state=glow_state)
-                    btn.configure(bg=target_color, fg=text)
-                    
-                    # Add text glow effect
-                    if glow_state == "normal":
-                        btn.configure(font=("Arial", 11, "bold"))
-                    else:
-                        btn.configure(font=("Arial", 10, "bold"))
-                except Exception:
-                    pass
-
-            def on_enter(_e):
-                # Show glow effect with enhanced shadow
-                self.bg_canvas.itemconfig(glow_id, state="normal")
-                animate_color(hover, "normal", 1.08)
-                st = self._button_anims.get(btn)
-                if st is not None:
-                    st["hover"] = True
-
-            def on_leave(_e):
-                # Hide glow effect
-                self.bg_canvas.itemconfig(glow_id, state="hidden")
-                animate_color(normal, "hidden", 1.0)
-                st = self._button_anims.get(btn)
-                if st is not None:
-                    st["hover"] = False
-
-            def on_press(_e):
-                animate_color(active, "normal", 0.96)
-
-            def on_release(_e):
-                animate_color(hover, "normal", 1.08)
-
-            # Bind events with smooth transitions
-            btn.bind("<Enter>", on_enter)
-            btn.bind("<Leave>", on_leave)
-            btn.bind("<ButtonPress-1>", on_press)
-            btn.bind("<ButtonRelease-1>", on_release)
-            
-            # Add subtle scale effect on press
-            def on_press_scale(_e):
-                try:
-                    # Slightly shrink the button on press
-                    bbox = self.bg_canvas.bbox(window_id)
-                    if bbox:
-                        x1, y1, x2, y2 = bbox
-                        scale = 0.95
-                        new_x1 = x1 + (x2-x1) * (1-scale) / 2
-                        new_y1 = y1 + (y2-y1) * (1-scale) / 2
-                        new_x2 = x2 - (x2-x1) * (1-scale) / 2
-                        new_y2 = y2 - (y2-y1) * (1-scale) / 2
-                        self.bg_canvas.coords(window_id, new_x1, new_y1)
-                except Exception:
-                    pass
-                    
-            def on_release_scale(_e):
-                try:
-                    # Restore original size
-                    bbox = self.bg_canvas.bbox(window_id)
-                    if bbox:
-                        x1, y1, x2, y2 = bbox
-                        self.bg_canvas.coords(window_id, x1, y1)
-                except Exception:
-                    pass
-            
-            btn.bind("<ButtonPress-1>", lambda e: [on_press(e), on_press_scale(e)])
-            btn.bind("<ButtonRelease-1>", lambda e: [on_release(e), on_release_scale(e)])
-            
-        except Exception:
-            pass
 
     def _schedule_button_animation(self):
         try:
