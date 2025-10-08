@@ -58,7 +58,8 @@ class PikachuGame:
             pass
         self.bg_canvas = self.ui.canvas
         self.ui.new_btn.config(command=self.new_game)
-        self.ui.auto_btn.config(command=self.start_auto)
+        # Ensure clicking Start Auto switches mode to Auto and starts
+        self.ui.auto_btn.config(command=self.handle_start_auto_click)
         self.ui.home_btn.config(command=self.go_to_splash_screen)
         # Connect skip button (if present)
         try:
@@ -73,6 +74,16 @@ class PikachuGame:
 
         self.image_ids = {}
         self.new_game()
+
+    def handle_start_auto_click(self):
+        """Switch to Auto mode and start the auto simulation."""
+        try:
+            # Force mode to Auto to avoid early return in start_auto
+            if hasattr(self.ui, 'mode_var'):
+                self.ui.mode_var.set("Auto")
+            self.start_auto()
+        except Exception:
+            pass
 
     def go_to_splash_screen(self):
         """Quay về giao diện SplashScreen và dừng trò chơi hiện tại."""
@@ -203,11 +214,20 @@ class PikachuGame:
         if self.timer_running and not self.game_paused:
             self.ui.time_label.config(text=f"Time: {self.time_elapsed}s")
             self.time_elapsed += 1
-            self.root.after(1000, self.update_timer)
+            try:
+                self._timer_after_id = self.root.after(1000, self.update_timer)
+            except Exception:
+                pass
         self.bg_canvas.tag_raise(self.ui.time_label_window)  # Đảm bảo luôn trên cùng
 
     def stop_timer(self):
         self.timer_running = False
+        try:
+            if hasattr(self, '_timer_after_id') and self._timer_after_id:
+                self.root.after_cancel(self._timer_after_id)
+                self._timer_after_id = None
+        except Exception:
+            pass
 
     def on_canvas_click(self, event):
         if self.game_paused:

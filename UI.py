@@ -373,22 +373,22 @@ class GameUI:
             
             # Create shadow effect
             shadow_id = self._create_round_rect(x1 - pad + 3, y1 - pad + 3, x2 + pad + 3, y2 + pad + 3, 
-                                             fill="#000000", outline="")
+                                             fill="#000000", outline="", state="disabled")
             self.bg_canvas.tag_lower(shadow_id)
             
             # Create main button background - perfect pill shape
             rect_id = self._create_round_rect(x1 - pad, y1 - pad, x2 + pad, y2 + pad, 
-                                            fill=normal, outline="")
+                                            fill=normal, outline="", state="disabled")
             self.bg_canvas.tag_lower(rect_id)
             
             # Create border with neon effect
             border_id = self._create_round_rect(x1 - pad, y1 - pad, x2 + pad, y2 + pad, 
-                                              fill="", outline="#C8C8DC", width=2)
+                                              fill="", outline="#C8C8DC", width=2, state="disabled")
             self.bg_canvas.tag_lower(border_id)
             
             # Create glow effect (initially hidden)
             glow_id = self._create_round_rect(x1 - pad - 6, y1 - pad - 6, x2 + pad + 6, y2 + pad + 6, 
-                                            fill=glow, outline="")
+                                            fill=glow, outline="", state="disabled")
             self.bg_canvas.tag_lower(glow_id)
             self.bg_canvas.itemconfig(glow_id, state="hidden")
             
@@ -510,9 +510,17 @@ class GameUI:
                         pass
         except Exception:
             pass
-        # Schedule next frame
+        # Schedule next frame and keep the id to allow cancellation on destroy
         try:
-            self.root.after(33, self._schedule_button_animation)
+            self._anim_after_id = self.root.after(33, self._schedule_button_animation)
+        except Exception:
+            pass
+
+    def destroy(self):
+        """Cancel scheduled animations before destroying to avoid invalid callbacks."""
+        try:
+            if hasattr(self, '_anim_after_id') and self._anim_after_id:
+                self.root.after_cancel(self._anim_after_id)
         except Exception:
             pass
 
@@ -532,9 +540,9 @@ class GameUI:
             font = ("Arial", 11, "bold")
             ids = []
             for dx, dy in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
-                tid = self.bg_canvas.create_text(cx + dx, cy + dy, text=label, fill=outline, font=font)
+                tid = self.bg_canvas.create_text(cx + dx, cy + dy, text=label, fill=outline, font=font, state="disabled")
                 ids.append(tid)
-            main_id = self.bg_canvas.create_text(cx, cy, text=label, fill=main, font=font)
+            main_id = self.bg_canvas.create_text(cx, cy, text=label, fill=main, font=font, state="disabled")
             ids.append(main_id)
             for tid in ids:
                 self.bg_canvas.tag_raise(tid)
@@ -580,9 +588,9 @@ class GameUI:
                 b = int(255 - 60 * ratio)
                 color = f"#{r:02x}{g:02x}{b:02x}"
                 # Multiple layers for glow effect
-                self.bg_canvas.create_line(60, btn_top + y, 60, btn_top + y, fill=color, width=8)
-                self.bg_canvas.create_line(63, btn_top + y, 63, btn_top + y, fill=color, width=4)
-                self.bg_canvas.create_line(65, btn_top + y, 65, btn_top + y, fill=color, width=2)
+                self.bg_canvas.create_line(60, btn_top + y, 60, btn_top + y, fill=color, width=8, state="disabled")
+                self.bg_canvas.create_line(63, btn_top + y, 63, btn_top + y, fill=color, width=4, state="disabled")
+                self.bg_canvas.create_line(65, btn_top + y, 65, btn_top + y, fill=color, width=2, state="disabled")
             
             # Right neon line with different gradient
             for y in range(line_h):
@@ -592,9 +600,9 @@ class GameUI:
                 b = int(220 + 30 * ratio)
                 color = f"#{r:02x}{g:02x}{b:02x}"
                 # Multiple layers for glow effect
-                self.bg_canvas.create_line(940, btn_top + y, 940, btn_top + y, fill=color, width=8)
-                self.bg_canvas.create_line(937, btn_top + y, 937, btn_top + y, fill=color, width=4)
-                self.bg_canvas.create_line(935, btn_top + y, 935, btn_top + y, fill=color, width=2)
+                self.bg_canvas.create_line(940, btn_top + y, 940, btn_top + y, fill=color, width=8, state="disabled")
+                self.bg_canvas.create_line(937, btn_top + y, 937, btn_top + y, fill=color, width=4, state="disabled")
+                self.bg_canvas.create_line(935, btn_top + y, 935, btn_top + y, fill=color, width=2, state="disabled")
         except Exception:
             pass
 
