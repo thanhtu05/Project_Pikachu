@@ -27,8 +27,6 @@ class PikachuGame:
         self.auto_running = False
         self.selected = []
         self.sound_enabled = True
-        # Use an absolute path relative to this file so history is found even if the app is
-        # started with a different working directory.
         self.history_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history.json")
         self.highlighted_cells = []  # Danh sách các ô đang được highlight
         self.background_revealed = 0
@@ -36,6 +34,8 @@ class PikachuGame:
 
         self.simulation_highlights = []  # Lưu các highlight trong simulation
         self.game_won = False  #trạng thái thắng
+        self.total_visited = 0  # Tổng số ô đã thăm
+        self.total_generated = 0  # Tổng số ô được tạo
 
         pygame.mixer.init()
         self.sounds = {
@@ -546,45 +546,33 @@ class PikachuGame:
 
     def skip_simulation(self):
         """Skip forward: fast-forward the simulation to the next 'goal' step or end."""
-        # Fast-forward the entire simulation to completion (apply all goal removals)
-        # If simulation_mode is not enabled, enable it temporarily so simulate_step works.
         was_sim = getattr(self.algorithms, 'simulation_mode', False)
         self.algorithms.simulation_mode = True
         try:
             while True:
                 step = self.algorithms.simulate_step()
                 if not step:
-                    # simulation finished
                     break
                 action, pos, path, turns = step
                 if action == 'visit' or action == 'expand':
-                    # ignore visualization steps while skipping
                     continue
                 if action == 'goal':
-                    # Apply the goal removal immediately (no animation)
                     if path and len(path) >= 2:
                         r1, c1 = path[0]
                         r2, c2 = path[-1]
-                        # remove pair and update state synchronously
                         self.remove_pair_and_check(r1, c1, r2, c2, path, auto=False)
-                        # if board cleared, win_game() will have been called inside
                         if not self.board.get_cells():
                             break
                 elif action == 'none':
-                    # no path found for this pair, stop skipping
                     break
-                # otherwise loop to next step
         finally:
-            # restore previous simulation mode
             self.algorithms.simulation_mode = was_sim
-            # reset the simulation internals and UI highlights
             try:
                 self.algorithms.reset_simulation()
             except Exception:
                 pass
             self.clear_simulation_highlights()
             self.clear_highlights()
-            # disable skip after finishing
             try:
                 self.set_skip_enabled(False)
             except Exception:
@@ -671,6 +659,21 @@ class PikachuGame:
                 self.board.reshuffle_remaining()
                 self.redraw_remaining_icons()
                 self.algorithms.board = self.board.board
+                # Tính lại visited và generated sau reshuffle (nếu cần)
+                temp_simulation_mode = self.algorithms.simulation_mode
+                self.algorithms.simulation_mode = True
+                pair = self.find_pair(algo)
+                if pair:
+                    (r1, c1), (r2, c2), path = pair
+                    self.algorithms.start_simulation((r1, c1), (r2, c2), algo)
+                    while True:
+                        step = self.algorithms.simulate_step()
+                        if not step or step[0] == "goal":
+                            break
+                    self.total_visited += self.algorithms.stats.get('visited', 0)
+                    self.total_generated += self.algorithms.stats.get('generated', 0)
+                self.algorithms.simulation_mode = temp_simulation_mode
+                self.algorithms.reset_simulation()
                 self.root.after(1000, self.continue_auto_play)
             else:
                 self.win_game()
@@ -708,7 +711,7 @@ class PikachuGame:
         self.root.after(350, lambda: self.remove_pair_and_check(r1, c1, r2, c2, path, auto=True))
 
     def remove_pair_and_check(self, r1, c1, r2, c2, path=None, auto=False):
-        if self.game_won:  # Ngăn xử lý nếu đã thắng
+        if self.game_won:
             return
 
         self.board.remove_pair(r1, c1, r2, c2)
@@ -726,6 +729,27 @@ class PikachuGame:
         self.clear_highlights()
         self.background_revealed += 2
         self.update_background_overlay()
+
+        # Cập nhật tổng visited và generated
+        if auto:
+            # Lấy từ simulate_auto_step
+            current_stats = getattr(self.algorithms, 'stats', {'visited': 0, 'generated': 0})
+        else:
+            # Tính lại cho chế độ thủ công bằng cách chạy mô phỏng tạm thời
+            temp_simulation_mode = self.algorithms.simulation_mode
+            self.algorithms.simulation_mode = True
+            self.algorithms.start_simulation((r1, c1), (r2, c2), self.ui.algo_var.get())
+            while True:
+                step = self.algorithms.simulate_step()
+                if not step or step[0] == "goal":
+                    break
+            current_stats = self.algorithms.stats.copy()
+            self.algorithms.simulation_mode = temp_simulation_mode
+            self.algorithms.reset_simulation()
+
+        self.total_visited += current_stats.get('visited', 0)
+        self.total_generated += current_stats.get('generated', 0)
+
         if not self.board.get_cells() and not self.game_won:
             self.win_game()
         elif auto and not self.game_won:
@@ -737,7 +761,7 @@ class PikachuGame:
         self.ui.moves_label.config(text=f"Cost: {self.cost}")
 
     def win_game(self):
-        if self.game_won:  # Ngăn gọi lặp
+        if self.game_won:
             return
         self.game_won = True
         self.auto_running = False
@@ -746,7 +770,6 @@ class PikachuGame:
         self.save_history_entry()
         self.win_screen = WinScreen(self.root, self, self.cost, self.time_elapsed)
         self.win_screen.show()
-        # Hủy tất cả sự kiện after còn lại
         self.root.after_cancel(self._timer_after_id) if hasattr(self, '_timer_after_id') else None
         if hasattr(self, 'auto_timer'):
             self.root.after_cancel(self.auto_timer)
@@ -762,20 +785,15 @@ class PikachuGame:
             return []
 
     def save_history_entry(self):
-        # Lấy thống kê thuật toán cuối cùng được sử dụng
         algo_stats = getattr(self, 'current_algorithm_stats', {
             'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0
         })
-
-        # Compute a stable key for the initial board state to group restarts
         try:
             state_str = json.dumps(self.initial_board, sort_keys=True)
         except Exception:
-            # Fallback if board not serializable for any reason
             state_str = str(self.initial_board)
         state_key = hashlib.md5(state_str.encode('utf-8')).hexdigest()
 
-        # Load existing history to determine state numeric id
         history = self.load_history()
         existing_states = {}
         max_state_id = 0
@@ -792,8 +810,6 @@ class PikachuGame:
         else:
             state_id = max_state_id + 1 if max_state_id else 1
 
-        # If the game was played in Manual mode, there is no algorithm run and
-        # the search statistics (visited/generated/steps/time_ms) are not applicable.
         mode_val = self.ui.mode_var.get() if hasattr(self, 'ui') else 'Manual'
         if mode_val == 'Manual':
             algo_val = 'Manual'
@@ -804,8 +820,9 @@ class PikachuGame:
         else:
             algo_val = self.ui.algo_var.get() if hasattr(self, 'ui') else ''
             steps_val = algo_stats.get('steps', 0)
-            visited_val = algo_stats.get('visited', 0)
-            generated_val = algo_stats.get('generated', 0)
+            # Sử dụng tổng thay vì giá trị riêng lẻ
+            visited_val = self.total_visited
+            generated_val = self.total_generated
             time_ms_val = algo_stats.get('time_ms', 0)
 
         entry = {
@@ -816,9 +833,11 @@ class PikachuGame:
             "cost": self.cost,
             "time": self.time_elapsed,
             "steps": steps_val,
-            "visited": visited_val,
-            "generated": generated_val,
+            "visited": visited_val,  # Sử dụng total_visited
+            "generated": generated_val,  # Sử dụng total_generated
             "time_ms": time_ms_val,
+            "total_visited": self.total_visited,  # Giữ tổng để tham chiếu
+            "total_generated": self.total_generated,  # Giữ tổng để tham chiếu
             "state_key": state_key,
             "state": state_id
         }
@@ -1296,4 +1315,3 @@ class PikachuGame:
             # Vẽ giá trị
             canvas.create_text(bar_x + bar_width // 2, bar_y - 10, text=f"{value:.1f}",
                                font=("Arial", 8), fill="#ffffff", anchor="center")
-

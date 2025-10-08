@@ -16,7 +16,6 @@ class SearchAlgorithms:
         self.simulation_mode = False
         self.simulation_steps = []
         self.current_step = 0
-        # Debugging toggle: when True, methods will print neighbor-generation diagnostics
         self.debug = False
 
     def neighbors(self, r, c):
@@ -55,17 +54,21 @@ class SearchAlgorithms:
 
     def _simulate_dfs(self, start, goal):
         start_time = time.time()
-        self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        if 'steps' not in self.stats:
+            self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        else:
+            self.stats['steps'] = 0  # Reset steps cho nước đi mới
+            self.stats['time_ms'] = 0  # Reset time cho nước đi mới
         # debug counters
-        total_candidates = 0
-        accepted = 0
-        rejected_turns = 0
-        rejected_blocked = 0
+        total_candidates = 0    #đếm số ô lân cận
+        accepted = 0    #số ô lân cận được chấp nhận
+        rejected_turns = 0  #số ô lân cận bị từ chối do vượt turns
+        rejected_blocked = 0    #số ô lân cận bị từ chối do không là ô trống hoặc goal
 
-        stack = [(start, [start], 0)]
+        stack = [(start, [start], 0)]   #bắt đầu ở ô start, đường đi ban đầu [start], số lần rẽ = 0
         visited = set()
         generated = set([start])
-        self.stats['generated'] = 1
+        self.stats['generated'] = 1 if self.stats['generated'] == 0 else self.stats['generated']
 
         while stack:
             (r, c), path, turns = stack.pop()
@@ -74,7 +77,7 @@ class SearchAlgorithms:
                 continue
             # mark as visited (expanded)
             visited.add((r, c))
-            self.stats['visited'] = len(visited)
+            self.stats['visited'] = 1
 
             if self.simulation_mode:
                 self.simulation_steps.append(("visit", (r, c), path.copy(), turns))
@@ -106,15 +109,20 @@ class SearchAlgorithms:
                 else:
                     rejected_turns += 1
 
-        self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
         if self.debug:
-            print(f"_simulate_dfs: candidates={total_candidates}, accepted={accepted}, rejected_turns={rejected_turns}, rejected_blocked={rejected_blocked}, generated={self.stats['generated']}, visited={self.stats['visited']}")
+            print(
+                f"_simulate_dfs: candidates={total_candidates}, accepted={accepted}, rejected_turns={rejected_turns}, rejected_blocked={rejected_blocked}, generated={self.stats['generated']}, visited={self.stats['visited']}")
         self.simulation_steps.append(("none", None, None, None))
 
     def _simulate_bfs(self, start, goal):
         start_time = time.time()
-        self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        if 'steps' not in self.stats:
+            self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        else:
+            self.stats['steps'] = 0
+            self.stats['time_ms'] = 0
+
         total_candidates = 0
         accepted = 0
         rejected_turns = 0
@@ -123,7 +131,7 @@ class SearchAlgorithms:
         queue = deque([(start, [start], 0)])
         visited = set()
         generated = set([start])
-        self.stats['generated'] = 1
+        self.stats['generated'] = 1 if self.stats['generated'] == 0 else self.stats['generated']
 
         while queue:
             (r, c), path, turns = queue.popleft()
@@ -131,15 +139,13 @@ class SearchAlgorithms:
             if (r, c) in visited:
                 continue
             visited.add((r, c))
-            self.stats['visited'] = len(visited)
+            self.stats['visited'] += 1
 
             if self.simulation_mode:
                 self.simulation_steps.append(("visit", (r, c), path.copy(), turns))
 
             if (r, c) == goal and self.count_turns(path) <= 2:
                 self.stats['steps'] = len(path) - 1
-                self.stats['visited'] = len(visited)
-                self.stats['generated'] = len(generated)
                 self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
                 self.simulation_steps.append(("goal", (r, c), path.copy(), turns))
                 return
@@ -156,13 +162,12 @@ class SearchAlgorithms:
                     queue.append(((nr, nc), new_path, new_turns))
                     if (nr, nc) not in generated:
                         generated.add((nr, nc))
-                        self.stats['generated'] = len(generated)
+                        self.stats['generated'] += 1
                     if self.simulation_mode:
                         self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
                 else:
                     rejected_turns += 1
 
-        self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
         if self.debug:
             print(f"_simulate_bfs: candidates={total_candidates}, accepted={accepted}, rejected_turns={rejected_turns}, rejected_blocked={rejected_blocked}, generated={self.stats['generated']}, visited={self.stats['visited']}")
@@ -170,7 +175,13 @@ class SearchAlgorithms:
 
     def _simulate_ucs(self, start, goal):
         start_time = time.time()
-        self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        # Không reset hoàn toàn stats, chỉ khởi tạo nếu chưa tồn tại hoặc reset một phần
+        if 'steps' not in self.stats:
+            self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        else:
+            self.stats['steps'] = 0  # Reset steps cho nước đi mới
+            self.stats['time_ms'] = 0  # Reset time cho nước đi mới
+
         total_candidates = 0
         accepted = 0
         rejected_turns = 0
@@ -179,7 +190,7 @@ class SearchAlgorithms:
         pq = [(0, start, [start], 0)]
         visited = set()
         generated = set([start])
-        self.stats['generated'] = 1
+        self.stats['generated'] = 1 if self.stats['generated'] == 0 else self.stats['generated']
 
         while pq:
             cost, (r, c), path, turns = heapq.heappop(pq)
@@ -187,15 +198,13 @@ class SearchAlgorithms:
             if (r, c) in visited:
                 continue
             visited.add((r, c))
-            self.stats['visited'] = len(visited)
+            self.stats['visited'] += 1  # Tăng dần thay vì gán lại
 
             if self.simulation_mode:
                 self.simulation_steps.append(("visit", (r, c), path.copy(), turns))
 
             if (r, c) == goal and self.count_turns(path) <= 2:
                 self.stats['steps'] = len(path) - 1
-                self.stats['visited'] = len(visited)
-                self.stats['generated'] = len(generated)
                 self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
                 self.simulation_steps.append(("goal", (r, c), path.copy(), turns))
                 return
@@ -212,13 +221,12 @@ class SearchAlgorithms:
                     heapq.heappush(pq, (cost + 1, (nr, nc), new_path, new_turns))
                     if (nr, nc) not in generated:
                         generated.add((nr, nc))
-                        self.stats['generated'] = len(generated)
+                        self.stats['generated'] += 1
                     if self.simulation_mode:
                         self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
                 else:
                     rejected_turns += 1
 
-        self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
         if self.debug:
             print(f"_simulate_ucs: candidates={total_candidates}, accepted={accepted}, rejected_turns={rejected_turns}, rejected_blocked={rejected_blocked}, generated={self.stats['generated']}, visited={self.stats['visited']}")
@@ -226,7 +234,12 @@ class SearchAlgorithms:
 
     def _simulate_astar(self, start, goal):
         start_time = time.time()
-        self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        # Không reset hoàn toàn stats, chỉ khởi tạo nếu chưa tồn tại hoặc reset một phần
+        if 'steps' not in self.stats:
+            self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        else:
+            self.stats['steps'] = 0  # Reset steps cho nước đi mới
+            self.stats['time_ms'] = 0  # Reset time cho nước đi mới
 
         def h(a, b):
             return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -239,7 +252,7 @@ class SearchAlgorithms:
         pq = [(h(start, goal), 0, start, [start], 0)]
         visited = set()
         generated = set([start])
-        self.stats['generated'] = 1
+        self.stats['generated'] = 1 if self.stats['generated'] == 0 else self.stats['generated']
 
         while pq:
             f, g, (r, c), path, turns = heapq.heappop(pq)
@@ -247,15 +260,13 @@ class SearchAlgorithms:
             if (r, c) in visited:
                 continue
             visited.add((r, c))
-            self.stats['visited'] = len(visited)
+            self.stats['visited'] += 1  # Tăng dần thay vì gán lại
 
             if self.simulation_mode:
                 self.simulation_steps.append(("visit", (r, c), path.copy(), turns))
 
             if (r, c) == goal and self.count_turns(path) <= 2:
                 self.stats['steps'] = len(path) - 1
-                self.stats['visited'] = len(visited)
-                self.stats['generated'] = len(generated)
                 self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
                 self.simulation_steps.append(("goal", (r, c), path.copy(), turns))
                 return
@@ -273,13 +284,12 @@ class SearchAlgorithms:
                     heapq.heappush(pq, (new_g + h((nr, nc), goal), new_g, (nr, nc), new_path, new_turns))
                     if (nr, nc) not in generated:
                         generated.add((nr, nc))
-                        self.stats['generated'] = len(generated)
+                        self.stats['generated'] += 1
                     if self.simulation_mode:
                         self.simulation_steps.append(("expand", (nr, nc), new_path.copy(), new_turns))
                 else:
                     rejected_turns += 1
 
-        self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
         if self.debug:
             print(f"_simulate_astar: candidates={total_candidates}, accepted={accepted}, rejected_turns={rejected_turns}, rejected_blocked={rejected_blocked}, generated={self.stats['generated']}, visited={self.stats['visited']}")
@@ -288,7 +298,12 @@ class SearchAlgorithms:
     def _simulate_hill_climb(self, start, goal):
         """Simple hill-climbing / greedy best-first style simulation toward the goal."""
         start_time = time.time()
-        self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        # Không reset hoàn toàn stats, chỉ khởi tạo nếu chưa tồn tại hoặc reset một phần
+        if 'steps' not in self.stats:
+            self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+        else:
+            self.stats['steps'] = 0  # Reset steps cho nước đi mới
+            self.stats['time_ms'] = 0  # Reset time cho nước đi mới
 
         def h(a, b):
             return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -297,6 +312,7 @@ class SearchAlgorithms:
         path = [start]
         visited = set([current])
         generated = set([start])
+        self.stats['generated'] = 1 if self.stats['generated'] == 0 else self.stats['generated']
 
         # add initial visit
         if self.simulation_mode:
@@ -305,7 +321,6 @@ class SearchAlgorithms:
         while True:
             if current == goal and self.count_turns(path) <= 2:
                 self.stats['steps'] = len(path) - 1
-                self.stats['visited'] = len(visited)
                 self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
                 self.simulation_steps.append(("goal", current, path.copy(), self.count_turns(path)))
                 return
@@ -321,11 +336,13 @@ class SearchAlgorithms:
                             neighbors.append(((nr, nc), new_path, new_turns))
                         # count generated even if filtered by turns
                         generated.add((nr, nc))
+                        self.stats['generated'] += 1
 
-            self.stats['generated'] = len(generated)
+            if self.simulation_mode:
+                for nb, nb_path, nb_turns in neighbors:
+                    self.simulation_steps.append(("expand", nb, nb_path.copy(), nb_turns))
 
             if not neighbors:
-                # stuck
                 self.stats['visited'] = len(visited)
                 self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
                 self.simulation_steps.append(("none", None, None, None))
@@ -334,11 +351,6 @@ class SearchAlgorithms:
             # choose best neighbor by heuristic
             neighbors.sort(key=lambda x: h(x[0], goal))
             best, best_path, best_turns = neighbors[0]
-
-            # simulate expand step for each candidate (optional: show top candidate)
-            if self.simulation_mode:
-                for nb, nb_path, nb_turns in neighbors:
-                    self.simulation_steps.append(("expand", nb, nb_path.copy(), nb_turns))
 
             # if no improvement in heuristic, we're stuck (hill climbing)
             if h(best, goal) >= h(current, goal):
@@ -351,6 +363,7 @@ class SearchAlgorithms:
             current = best
             path = best_path
             visited.add(current)
+            self.stats['visited'] += 1
             if self.simulation_mode:
                 self.simulation_steps.append(("visit", current, path.copy(), best_turns))
 
