@@ -772,17 +772,33 @@ class PikachuGame:
         else:
             state_id = max_state_id + 1 if max_state_id else 1
 
+        # If the game was played in Manual mode, there is no algorithm run and
+        # the search statistics (visited/generated/steps/time_ms) are not applicable.
+        mode_val = self.ui.mode_var.get() if hasattr(self, 'ui') else 'Manual'
+        if mode_val == 'Manual':
+            algo_val = 'Manual'
+            steps_val = 0
+            visited_val = 0
+            generated_val = 0
+            time_ms_val = 0
+        else:
+            algo_val = self.ui.algo_var.get() if hasattr(self, 'ui') else ''
+            steps_val = algo_stats.get('steps', 0)
+            visited_val = algo_stats.get('visited', 0)
+            generated_val = algo_stats.get('generated', 0)
+            time_ms_val = algo_stats.get('time_ms', 0)
+
         entry = {
             "rows": self.rows,
             "cols": self.cols,
-            "algo": self.ui.algo_var.get(),
-            "mode": self.ui.mode_var.get(),
+            "algo": algo_val,
+            "mode": mode_val,
             "cost": self.cost,
             "time": self.time_elapsed,
-            "steps": algo_stats.get('steps', 0),
-            "visited": algo_stats.get('visited', 0),
-            "generated": algo_stats.get('generated', 0),
-            "time_ms": algo_stats.get('time_ms', 0),
+            "steps": steps_val,
+            "visited": visited_val,
+            "generated": generated_val,
+            "time_ms": time_ms_val,
             "state_key": state_key,
             "state": state_id
         }
@@ -836,14 +852,15 @@ class PikachuGame:
         total_games = len(history)
         avg_time = sum(h.get("time", 0) for h in history) / max(total_games, 1)
         best_time = min((h.get("time", 999) for h in history), default=0)
-        best_moves = min((h.get("moves", 999) for h in history), default=0)
+        # Prefer 'cost' field; fallback to 'moves' for backward compatibility
+        best_cost = min((h.get("cost", h.get("moves", 999)) for h in history), default=0)
 
         # Tạo các thẻ thống kê (đã loại bỏ Avg Moves theo yêu cầu)
         stats_data = [
             ("🎯 Total Games", f"{total_games}"),
             ("⏱️ Avg Time", f"{avg_time:.1f}s"),
             ("🏆 Best Time", f"{best_time}s"),
-            ("🎪 Best Moves", f"{best_moves}")
+            ("🎪 Best Cost", f"{best_cost}")
         ]
 
         for i, (label, value) in enumerate(stats_data):
@@ -899,7 +916,7 @@ class PikachuGame:
 
         self.filter_algo_var = tk.StringVar(value="All")
         algo_filter = ttk.Combobox(toolbar_frame, textvariable=self.filter_algo_var,
-                                   values=["All", "DFS", "BFS", "UCS", "A*"],
+                                   values=["All", "DFS", "BFS", "UCS", "A*", "Manual"],
                                    state="readonly", width=10)
         algo_filter.pack(side="left", padx=(0, 20))
 
@@ -909,9 +926,9 @@ class PikachuGame:
 
         self.sort_var = tk.StringVar(value="Time (Newest)")
         sort_combo = ttk.Combobox(toolbar_frame, textvariable=self.sort_var,
-                                  values=["Time (Newest)", "Time (Oldest)", "Moves (Low)", "Moves (High)",
-                                          "Algorithm", "Mode"],
-                                  state="readonly", width=15)
+                  values=["Time (Newest)", "Time (Oldest)", "Cost (Low)", "Cost (High)",
+                      "Algorithm", "Mode"],
+                  state="readonly", width=15)
         sort_combo.pack(side="left", padx=(0, 20))
 
         # Nút refresh
@@ -952,11 +969,11 @@ class PikachuGame:
         # Tạo frame cho treeview và scrollbar
         tree_frame = tk.Frame(data_frame, bg="#16213e")
         tree_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        cols = ("#", "State", "Algorithm", "Mode", "Moves", "Time (s)", "Visited", "Generated")
+        cols = ("#", "State", "Algorithm", "Mode", "Cost", "Time (s)", "Visited", "Generated")
         tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=12, style="Custom.Treeview")
 
         # Cấu hình cột với độ rộng phù hợp
-        column_widths = {"#": 40, "State": 60, "Algorithm": 80, "Mode": 60, "Moves": 60, "Time (s)": 70,
+        column_widths = {"#": 40, "State": 60, "Algorithm": 80, "Mode": 60, "Cost": 60, "Time (s)": 70,
                          "Visited": 70, "Generated": 80}
         for c in cols:
             tree.heading(c, text=c)
@@ -1040,6 +1057,7 @@ class PikachuGame:
                 h.get("state", "N/A"),
                 h.get("algo", "N/A"),
                 h.get("mode", "N/A"),
+                # display cost, fallback to moves for older histories
                 h.get("cost", h.get("moves", 0)),
                 h.get("time", 0),
                 h.get("visited", 0),
@@ -1069,10 +1087,10 @@ class PikachuGame:
             sorted_history = sorted(history, key=lambda x: x.get("time", 0), reverse=True)
         elif sort_by == "Time (Oldest)":
             sorted_history = sorted(history, key=lambda x: x.get("time", 0))
-        elif sort_by == "Moves (Low)":
-            sorted_history = sorted(history, key=lambda x: x.get("moves", 0))
-        elif sort_by == "Moves (High)":
-            sorted_history = sorted(history, key=lambda x: x.get("moves", 0), reverse=True)
+        elif sort_by == "Cost (Low)":
+            sorted_history = sorted(history, key=lambda x: x.get("cost", x.get("moves", 0)))
+        elif sort_by == "Cost (High)":
+            sorted_history = sorted(history, key=lambda x: x.get("cost", x.get("moves", 0)), reverse=True)
         elif sort_by == "Algorithm":
             sorted_history = sorted(history, key=lambda x: x.get("algo", ""))
         elif sort_by == "Mode":
@@ -1112,7 +1130,7 @@ class PikachuGame:
 
             if filename:
                 with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                    fieldnames = ['Algorithm', 'Mode', 'Moves', 'Time (s)', 'Visited', 'Generated']
+                    fieldnames = ['Algorithm', 'Mode', 'Cost', 'Time (s)', 'Visited', 'Generated']
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
                     writer.writeheader()
@@ -1120,7 +1138,8 @@ class PikachuGame:
                         writer.writerow({
                             'Algorithm': h.get("algo", "N/A"),
                             'Mode': h.get("mode", "N/A"),
-                            'Moves': h.get("moves", 0),
+                            # write cost with fallback to moves
+                            'Cost': h.get("cost", h.get("moves", 0)),
                             'Time (s)': h.get("time", 0),
                             'Visited': h.get("visited", 0),
                             'Generated': h.get("generated", 0)
