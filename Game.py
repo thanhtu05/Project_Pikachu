@@ -25,6 +25,8 @@ class PikachuGame:
         self.timer_running = False
         self.game_paused = False
         self.auto_running = False
+        # Milliseconds between auto simulation steps; lower = faster
+        self.auto_delay_ms = 0
         self.selected = []
         self.sound_enabled = True
         self.history_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history.json")
@@ -36,6 +38,7 @@ class PikachuGame:
         self.game_won = False  #trạng thái thắng
         self.total_visited = 0  # Tổng số ô đã thăm
         self.total_generated = 0  # Tổng số ô được tạo
+        self.reshuffle_count = 0  # Số lần reshuffle trong game
 
         pygame.mixer.init()
         self.sounds = {
@@ -79,12 +82,32 @@ class PikachuGame:
     def handle_start_auto_click(self):
         """Switch to Auto mode and start the auto simulation."""
         try:
+            # Stop any running auto first
+            if self.auto_running:
+                self.stop_game()
+                print(f"[DEBUG] Stopped previous auto before starting new one")
+            
             # Force mode to Auto to avoid early return in start_auto
             if hasattr(self.ui, 'mode_var'):
                 self.ui.mode_var.set("Auto")
+            # Start the timer when auto starts
+            if not self.timer_running:
+                self.start_timer()
             self.start_auto()
         except Exception:
             pass
+    
+    def on_algo_change(self, algo_value):
+        """Called when algorithm is changed - stop auto if running"""
+        if self.auto_running:
+            self.stop_game()
+            print(f"[DEBUG] Auto stopped due to algorithm change to: {algo_value}")
+    
+    def on_mode_change(self, mode_value):
+        """Called when mode is changed - stop auto if running"""
+        if self.auto_running:
+            self.stop_game()
+            print(f"[DEBUG] Auto stopped due to mode change to: {mode_value}")
 
     def go_to_splash_screen(self):
         """Quay về giao diện SplashScreen và dừng trò chơi hiện tại."""
@@ -131,6 +154,7 @@ class PikachuGame:
         """Khởi tạo game mới - reset cả simulation"""
         self.auto_running = False
         self.game_paused = False
+        self.game_won = False  # Reset game won flag
         self.cost = 0
         self.time_elapsed = 0
         self.ui.moves_label.config(text="Cost: 0")
@@ -149,6 +173,8 @@ class PikachuGame:
         except Exception:
             pass
         self.background_revealed = 0
+        # Reset reshuffle counter for new game
+        self.reshuffle_count = 0
 
         if restore_initial and hasattr(self, 'initial_board'):
             self.board.board = [row[:] for row in self.initial_board]
@@ -178,7 +204,9 @@ class PikachuGame:
                 self.image_ids[(r, c)] = img_id
 
         self.update_background_overlay()
-        self.start_timer()
+    # Don't auto start here - timer will begin when Auto is started or on first manual match
+        
+    # Don't auto start - user must click "Start Auto" button manually or make first manual match
 
     def stop_game(self):
         """Dừng trò chơi và chế độ tự động"""
@@ -479,14 +507,20 @@ class PikachuGame:
         self.ui.canvas.tag_lower(glow_line)
 
         self.root.update()
-        self.root.after(300, lambda: [self.ui.canvas.delete(line), self.ui.canvas.delete(glow_line)])
+        # delete lightning effect after a short time depending on auto speed
+        delay_del = max(20, int(self.auto_delay_ms // 2))
+        self.root.after(delay_del, lambda: [self.ui.canvas.delete(line), self.ui.canvas.delete(glow_line)])
 
     def start_auto(self):
+        print(f"[DEBUG] start_auto called - game_paused: {self.game_paused}, game_won: {self.game_won}, mode: {self.ui.mode_var.get()}")
         if self.game_paused or self.game_won:
+            print(f"[DEBUG] start_auto blocked - game_paused: {self.game_paused}, game_won: {self.game_won}")
             return
         if self.ui.mode_var.get() != "Auto":
+            print(f"[DEBUG] start_auto blocked - mode is not Auto: {self.ui.mode_var.get()}")
             return
 
+        print(f"[DEBUG] start_auto proceeding...")
         self.auto_running = True
         self.algorithms.simulation_mode = True
         self.simulate_auto_step()
@@ -516,7 +550,8 @@ class PikachuGame:
                     r1, c1 = path[0]
                     r2, c2 = path[-1]
                     self.draw_final_path(path)
-                    self.root.after(1000, lambda: self.remove_pair_and_check(r1, c1, r2, c2, path, auto=True))
+                    # wait a bit (configurable) then remove the pair
+                    self.root.after(max(20, int(self.auto_delay_ms)), lambda: self.remove_pair_and_check(r1, c1, r2, c2, path, auto=True))
                     return
 
             elif action == "none":
@@ -524,7 +559,7 @@ class PikachuGame:
                 self.root.after(1500, self.continue_auto_play)
                 return
 
-            delay = 300
+            delay = max(10, int(self.auto_delay_ms))
             self.auto_timer = self.root.after(delay, self.simulate_auto_step)
         else:
             self.algorithms.reset_simulation()
@@ -534,7 +569,7 @@ class PikachuGame:
                 self.set_skip_enabled(False)
             except Exception:
                 pass
-            self.root.after(500, self.continue_auto_play)
+            self.root.after(max(20, int(self.auto_delay_ms // 2)), self.continue_auto_play)
 
     def set_skip_enabled(self, enabled: bool):
         """Enable or disable the Skip button if available."""
@@ -657,6 +692,8 @@ class PikachuGame:
             print(f"Remaining cells after pair search: {remaining_cells}")
             if remaining_cells:
                 self.board.reshuffle_remaining()
+                # Track reshuffle count for history
+                self.reshuffle_count += 1
                 self.redraw_remaining_icons()
                 self.algorithms.board = self.board.board
                 # Tính lại visited và generated sau reshuffle (nếu cần)
@@ -689,6 +726,8 @@ class PikachuGame:
             # Không còn cặp hợp lệ, nếu còn ô -> reshuffle, nếu không -> win
             if self.board.get_cells():
                 self.board.reshuffle_remaining()
+                # Track reshuffle count for history
+                self.reshuffle_count += 1
                 # vẽ lại toàn bộ các icon còn lại sau reshuffle
                 for (r, c), img_id in list(self.image_ids.items()):
                     if self.board.board[r][c] == -1:
@@ -754,6 +793,13 @@ class PikachuGame:
             self.win_game()
         elif auto and not self.game_won:
             self.root.after(400, self.continue_auto_play)
+        else:
+            # For manual mode, if timer not running start it when the first successful pair is removed
+            if not auto and not self.timer_running:
+                try:
+                    self.start_timer()
+                except Exception:
+                    pass
 
     def update_cost(self, path_length):
         """Cập nhật cost dựa trên chiều dài đường đi."""
@@ -773,6 +819,14 @@ class PikachuGame:
         self.root.after_cancel(self._timer_after_id) if hasattr(self, '_timer_after_id') else None
         if hasattr(self, 'auto_timer'):
             self.root.after_cancel(self.auto_timer)
+
+    def set_auto_delay_ms(self, ms: int):
+        """Set the delay (in milliseconds) between auto simulation steps. Lower = faster."""
+        try:
+            self.auto_delay_ms = max(10, int(ms))
+            print(f"[DEBUG] auto_delay_ms set to {self.auto_delay_ms}ms")
+        except Exception:
+            pass
 
     # ---------- History ----------
     def load_history(self):
@@ -835,6 +889,7 @@ class PikachuGame:
             "steps": steps_val,
             "visited": visited_val,  # Sử dụng total_visited
             "generated": generated_val,  # Sử dụng total_generated
+            "reshuffles": self.reshuffle_count,
             "time_ms": time_ms_val,
             "total_visited": self.total_visited,  # Giữ tổng để tham chiếu
             "total_generated": self.total_generated,  # Giữ tổng để tham chiếu
@@ -1008,12 +1063,12 @@ class PikachuGame:
         # Tạo frame cho treeview và scrollbar
         tree_frame = tk.Frame(data_frame, bg="#16213e")
         tree_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        cols = ("#", "State", "Algorithm", "Mode", "Cost", "Time (s)", "Visited", "Generated")
+        cols = ("#", "State", "Algorithm", "Mode", "Cost", "Time (s)", "Visited", "Generated", "Reshuffles")
         tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=12, style="Custom.Treeview")
 
         # Cấu hình cột với độ rộng phù hợp
         column_widths = {"#": 40, "State": 60, "Algorithm": 80, "Mode": 60, "Cost": 60, "Time (s)": 70,
-                         "Visited": 70, "Generated": 80}
+                         "Visited": 70, "Generated": 80, "Reshuffles": 80}
         for c in cols:
             tree.heading(c, text=c)
             tree.column(c, width=column_widths[c], anchor="center")
@@ -1100,7 +1155,8 @@ class PikachuGame:
                 h.get("cost", h.get("moves", 0)),
                 h.get("time", 0),
                 h.get("visited", 0),
-                h.get("generated", 0)
+                h.get("generated", 0),
+                h.get("reshuffles", 0)
             )
             tree.insert("", "end", values=values)
 
@@ -1169,7 +1225,7 @@ class PikachuGame:
 
             if filename:
                 with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                    fieldnames = ['Algorithm', 'Mode', 'Cost', 'Time (s)', 'Visited', 'Generated']
+                    fieldnames = ['Algorithm', 'Mode', 'Cost', 'Time (s)', 'Visited', 'Generated', 'Reshuffles']
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
                     writer.writeheader()
@@ -1181,7 +1237,8 @@ class PikachuGame:
                             'Cost': h.get("cost", h.get("moves", 0)),
                             'Time (s)': h.get("time", 0),
                             'Visited': h.get("visited", 0),
-                            'Generated': h.get("generated", 0)
+                            'Generated': h.get("generated", 0),
+                            'Reshuffles': h.get("reshuffles", 0)
                         })
 
                 messagebox.showinfo("Success", f"History exported to {filename}")

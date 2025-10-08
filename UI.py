@@ -146,6 +146,54 @@ class GameUI:
         except Exception:
             pass
 
+        # React to dropdown changes - stop auto when algorithm or mode changes
+        def _on_mode_change(*_):
+            mode_value = self.mode_var.get()
+            # show Skip only in Auto
+            try:
+                if mode_value.lower() == "auto":
+                    self.bg_canvas.itemconfigure(self.skip_btn_window, state="normal")
+                else:
+                    self.bg_canvas.itemconfigure(self.skip_btn_window, state="hidden")
+            except Exception:
+                pass
+            
+            # Stop auto if running when mode changes
+            if hasattr(self, 'game') and self.game and hasattr(self.game, 'auto_running') and self.game.auto_running:
+                self.game.stop_game()
+                print(f"[DEBUG] Auto stopped due to mode change to: {mode_value}")
+            
+            # notify game
+            if hasattr(self, 'game') and self.game:
+                if hasattr(self.game, 'on_mode_change') and callable(getattr(self.game, 'on_mode_change')):
+                    try:
+                        self.game.on_mode_change(mode_value)
+                    except Exception:
+                        pass
+
+        def _on_algo_change(*_):
+            algo_value = self.algo_var.get()
+            # Stop auto if running when algorithm changes
+            if hasattr(self, 'game') and self.game and hasattr(self.game, 'auto_running') and self.game.auto_running:
+                self.game.stop_game()
+                print(f"[DEBUG] Auto stopped due to algorithm change to: {algo_value}")
+            
+            if hasattr(self, 'game') and self.game:
+                if hasattr(self.game, 'on_algo_change') and callable(getattr(self.game, 'on_algo_change')):
+                    try:
+                        self.game.on_algo_change(algo_value)
+                    except Exception:
+                        pass
+
+        try:
+            self.mode_var.trace_add('write', _on_mode_change)
+            self.algo_var.trace_add('write', _on_algo_change)
+            # Initialize once
+            _on_mode_change()
+            _on_algo_change()
+        except Exception:
+            pass
+
         # Button style
         button_style = {
             "width": 12,
@@ -158,7 +206,8 @@ class GameUI:
         }
 
         # Layout buttons
-        button_count = 7
+        # Skip button removed -> adjust count to 6
+        button_count = 6
         button_width = 12 * 8 + 4
         total_available_width = 1000 - 200
         button_spacing = max(8, (total_available_width - (button_count * button_width)) // (button_count + 1))
@@ -166,11 +215,11 @@ class GameUI:
 
         self.new_btn = tk.Button(self.bg_canvas, text="🆕 New Game", bg="#118AB2", fg="#FFFFFF",
                                  activebackground="#073B4C", **button_style)
-        self.new_btn_window = self.bg_canvas.create_window(start_x, 60, window=self.new_btn, anchor="nw")
+        self.new_btn_window = self.bg_canvas.create_window(start_x + 0 * (button_spacing + button_width), 60, window=self.new_btn, anchor="nw")
 
         self.auto_btn = tk.Button(self.bg_canvas, text="▶️ Start Auto", bg="#06D6A0", fg="#0B0C10",
                                   activebackground="#118AB2", **button_style)
-        self.auto_btn_window = self.bg_canvas.create_window(start_x + button_spacing + button_width, 60,
+        self.auto_btn_window = self.bg_canvas.create_window(start_x + 1 * (button_spacing + button_width), 60,
                                                              window=self.auto_btn, anchor="nw")
         # wire to game's start_auto if provided
         if hasattr(self, 'game') and self.game and hasattr(self.game, 'start_auto'):
@@ -179,22 +228,12 @@ class GameUI:
             except Exception:
                 pass
 
-        # Skip button (user requested)
-        self.skip_btn = tk.Button(self.bg_canvas, text="⏭️ Skip", bg="#FFD166", fg="#0B0C10",
-                                  activebackground="#EF476F", **button_style)
-        self.skip_btn_window = self.bg_canvas.create_window(start_x + 2 * (button_spacing + button_width), 60,
-                                                             window=self.skip_btn, anchor="nw")
-        # wire skip if game has skip_simulation
-        if hasattr(self, 'game') and self.game and hasattr(self.game, 'skip_simulation'):
-            try:
-                self.skip_btn.config(command=self.game.skip_simulation)
-            except Exception:
-                pass
+        # Skip button removed per user request
 
         self.stop_btn = tk.Button(self.bg_canvas, text="⏹️ Stop", bg="#EF476F", fg="#FFFFFF",
                                   activebackground="#D62839", command=self.pause_game,
                                   **button_style)
-        self.stop_btn_window = self.bg_canvas.create_window(start_x + 3 * (button_spacing + button_width), 60,
+        self.stop_btn_window = self.bg_canvas.create_window(start_x + 2 * (button_spacing + button_width), 60,
                                                              window=self.stop_btn, anchor="nw")
         if hasattr(self, 'game') and self.game and hasattr(self.game, 'stop_game'):
             try:
@@ -205,7 +244,7 @@ class GameUI:
         self.continue_btn = tk.Button(self.bg_canvas, text="▶️ Continue", bg="#FFD166", fg="#0B0C10",
                                       activebackground="#06D6A0", command=self.resume_game,
                                       **button_style)
-        self.continue_btn_window = self.bg_canvas.create_window(start_x + 4 * (button_spacing + button_width), 60,
+        self.continue_btn_window = self.bg_canvas.create_window(start_x + 3 * (button_spacing + button_width), 60,
                                                                  window=self.continue_btn, anchor="nw")
         if hasattr(self, 'game') and self.game and hasattr(self.game, 'resume_game'):
             try:
@@ -215,7 +254,7 @@ class GameUI:
 
         self.history_btn = tk.Button(self.bg_canvas, text="📊 History", bg="#073B4C", fg="#FFFFFF",
                                      activebackground="#118AB2", **button_style)
-        self.history_btn_window = self.bg_canvas.create_window(start_x + 5 * (button_spacing + button_width), 60,
+        self.history_btn_window = self.bg_canvas.create_window(start_x + 4 * (button_spacing + button_width), 60,
                                                                 window=self.history_btn, anchor="nw")
         if hasattr(self, 'game') and self.game and hasattr(self.game, 'show_history'):
             try:
@@ -225,7 +264,7 @@ class GameUI:
 
         self.home_btn = tk.Button(self.bg_canvas, text="🏠 Home", bg="#06D6A0", fg="#0B0C10",
                                   activebackground="#118AB2", **button_style)
-        self.home_btn_window = self.bg_canvas.create_window(start_x + 6 * (button_spacing + button_width), 60,
+        self.home_btn_window = self.bg_canvas.create_window(start_x + 5 * (button_spacing + button_width), 60,
                                                             window=self.home_btn, anchor="nw")
         if hasattr(self, 'game') and self.game and hasattr(self.game, 'go_home'):
             try:
@@ -243,8 +282,7 @@ class GameUI:
             self._attach_arcade_text(self.auto_btn, self.auto_btn_window, label="▶️ Start Auto",
                                       main="#0B0C10", outline="#FFFFFF")
 
-            self._attach_arcade_text(self.skip_btn, self.skip_btn_window, label="⏭️ Skip",
-                                      main="#0B0C10", outline="#FFFFFF")
+            # Skip button removed - no attachment here
 
             self._attach_arcade_text(self.stop_btn, self.stop_btn_window, label="⏹️ Stop",
                                       main="#FFFFFF", outline="#000000")
@@ -274,7 +312,7 @@ class GameUI:
         # Raise widgets to top
         for win in [self.moves_label_window, self.time_label_window, self.sound_toggle_window,
                     self.mode_menu_window, self.algo_menu_window, self.new_btn_window, self.auto_btn_window,
-                    self.skip_btn_window, self.stop_btn_window, self.continue_btn_window, self.history_btn_window,
+                    self.stop_btn_window, self.continue_btn_window, self.history_btn_window,
                     self.home_btn_window, self.canvas_window]:
             try:
                 self.bg_canvas.tag_raise(win)

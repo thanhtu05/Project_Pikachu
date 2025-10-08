@@ -100,7 +100,7 @@ class ModernButton(tk.Canvas):
 class ModernSplashScreen:
     def __init__(self, root):
         self.root = root
-        self.root.title("Pikachu Game - Choose Your Level")
+        self.root.title("Pikachu Game - Pham Thi Van Anh - Hoang Thanh Tu")
         self.root.geometry("800x600")
         self.root.resizable(False, False)
 
