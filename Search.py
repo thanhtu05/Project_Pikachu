@@ -335,7 +335,7 @@ class SearchAlgorithms:
                         if new_turns <= 2:
                             neighbors.append(((nr, nc), new_path, new_turns))
                         # count generated even if filtered by turns
-                        generated.add((nr, nc))
+                            generated.add((nr, nc))
                         self.stats['generated'] += 1
 
             if self.simulation_mode:
@@ -366,57 +366,6 @@ class SearchAlgorithms:
             self.stats['visited'] += 1
             if self.simulation_mode:
                 self.simulation_steps.append(("visit", current, path.copy(), best_turns))
-
-    def hill_climb(self, start, goal):
-        """Non-simulated hill-climbing path: greedy neighbor selection by Manhattan distance.
-        Returns path or None. Updates self.stats similarly to other methods."""
-        if self.simulation_mode:
-            return None
-        start_time = time.time()
-        self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
-
-        def h(a, b):
-            return abs(a[0] - b[0]) + abs(a[1] - b[1])
-
-        current = start
-        path = [start]
-        visited = set([current])
-        generated = set([start])
-
-        while True:
-            if current == goal and self.count_turns(path) <= 2:
-                self.stats['steps'] = len(path) - 1
-                self.stats['visited'] = len(visited)
-                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
-                return path
-
-            neighbors = []
-            for nr, nc, dr, dc in self.neighbors(current[0], current[1]):
-                if self.board[nr][nc] == -1 or (nr, nc) == goal:
-                    if (nr, nc) not in visited:
-                        new_path = path + [(nr, nc)]
-                        new_turns = self.count_turns(new_path)
-                        if new_turns <= 2:
-                            neighbors.append(((nr, nc), new_path, new_turns))
-                        generated.add((nr, nc))
-
-            self.stats['generated'] = len(generated)
-
-            if not neighbors:
-                self.stats['visited'] = len(visited)
-                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
-                return None
-
-            neighbors.sort(key=lambda x: h(x[0], goal))
-            best, best_path, best_turns = neighbors[0]
-            if h(best, goal) >= h(current, goal):
-                self.stats['visited'] = len(visited)
-                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
-                return None
-
-            current = best
-            path = best_path
-            visited.add(current)
 
     def simulate_step(self):
         """Trả về bước tiếp theo trong quá trình simulation"""
@@ -466,7 +415,7 @@ class SearchAlgorithms:
                         return (r1, c1), (r2, c2), path
         return None
 
-    # Các phương thức cũ (DFS, BFS, UCS, A*) giờ chỉ dùng khi không simulation
+    # Các phương thức (DFS, BFS, UCS, A*) giờ chỉ dùng khi không simulation
     def dfs(self, start, goal):
         if self.simulation_mode:
             return None
@@ -630,3 +579,53 @@ class SearchAlgorithms:
         self.stats['visited'] = len(visited)
         self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
         return None
+    def hill_climb(self, start, goal):
+        """Non-simulated hill-climbing path: greedy neighbor selection by Manhattan distance.
+        Returns path or None. Updates self.stats similarly to other methods."""
+        if self.simulation_mode:
+            return None
+        start_time = time.time()
+        self.stats = {'steps': 0, 'visited': 0, 'generated': 0, 'time_ms': 0}
+
+        def h(a, b):
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+        current = start
+        path = [start]
+        visited = set([current])
+        generated = set([start])
+
+        while True:
+            if current == goal and self.count_turns(path) <= 2:
+                self.stats['steps'] = len(path) - 1
+                self.stats['visited'] = len(visited)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                return path
+
+            neighbors = []
+            for nr, nc, dr, dc in self.neighbors(current[0], current[1]):
+                if self.board[nr][nc] == -1 or (nr, nc) == goal:
+                    if (nr, nc) not in visited:
+                        new_path = path + [(nr, nc)]
+                        new_turns = self.count_turns(new_path)
+                        if new_turns <= 2:
+                            neighbors.append(((nr, nc), new_path, new_turns))
+                            generated.add((nr, nc))
+
+            self.stats['generated'] = len(generated)
+
+            if not neighbors:
+                self.stats['visited'] = len(visited)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                return None
+
+            neighbors.sort(key=lambda x: h(x[0], goal))
+            best, best_path, best_turns = neighbors[0]
+            if h(best, goal) >= h(current, goal):
+                self.stats['visited'] = len(visited)
+                self.stats['time_ms'] = round((time.time() - start_time) * 1000, 1)
+                return None
+
+            current = best
+            path = best_path
+            visited.add(current)
