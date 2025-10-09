@@ -71,44 +71,49 @@ class GameUI:
         style.configure("TCheckbutton", font=("Arial", 10), background="#0B0C10", foreground="#C5C6C7")
 
         # Status labels
-        # Enhanced top bar with neon gradient effect
-        self.topbar = self.bg_canvas.create_rectangle(0, 0, 1000, 50, fill="#0B0C10", outline="")
-        # Create neon gradient effect similar to pygame version
+        # Enhanced top bar with dark blue/black gradient to match background
+        self.topbar = self.bg_canvas.create_rectangle(0, 0, 1000, 50, fill="#071022", outline="")
+        # Create subtle dark-blue gradient
         try:
-            for i in range(50):
-                ratio = i / 50
-                # Neon blue to purple gradient
-                r = int(160 + 80 * ratio)
-                g = int(10 + 120 * ratio) 
-                b = int(255 - 60 * ratio)
+            start_color = (7, 18, 34)   # deep navy
+            end_color = (2, 6, 14)      # near black-blue
+            steps = 50
+            for i in range(steps):
+                ratio = i / max(1, steps - 1)
+                r = int(start_color[0] + (end_color[0] - start_color[0]) * ratio)
+                g = int(start_color[1] + (end_color[1] - start_color[1]) * ratio)
+                b = int(start_color[2] + (end_color[2] - start_color[2]) * ratio)
                 color = f"#{r:02x}{g:02x}{b:02x}"
                 self.bg_canvas.create_line(0, i, 1000, i, fill=color, width=1)
         except Exception:
             pass
-            
 
-        self.bg_canvas.create_text(20, 12, text="PIKACHU", fill="#A0E7E5", font=("Arial", 18, "bold"), anchor="nw")
+        # Title text (left-aligned)
+        self.bg_canvas.create_text(20, 12, text="PIKACHU", fill="#9FD7FF", font=("Arial", 18, "bold"), anchor="nw")
 
         # Enhanced status labels with text effects
-        self.moves_label = tk.Label(self.bg_canvas, text="Cost: 0", fg="#FFD166", bg="#0B0C10",
+        # Move status labels right so they don't overlap the title and match topbar colors
+        status_bg = "#071022"
+        self.moves_label = tk.Label(self.bg_canvas, text="Cost: 0", fg="#9FD7FF", bg=status_bg,
                                     font=("Arial", 12, "bold"), relief="flat", bd=0)
-        self.moves_label_window = self.bg_canvas.create_window(120, 12, window=self.moves_label, anchor="nw")
+        # place cost a bit right of title
+        self.moves_label_window = self.bg_canvas.create_window(160, 12, window=self.moves_label, anchor="nw")
         
-        # Add text shadow effect to cost label
+        # Add text shadow effect to cost label (kept subtle)
         try:
-            self.cost_shadow = self.bg_canvas.create_text(102, 14, text="Cost: 0", fill="#000000", 
+            self.cost_shadow = self.bg_canvas.create_text(158, 14, text="Cost: 0", fill="#000000", 
                                                          font=("Arial", 12, "bold"), anchor="nw")
             self.bg_canvas.tag_lower(self.cost_shadow)
         except Exception:
             pass
 
-        self.time_label = tk.Label(self.bg_canvas, text="Time: 0s", fg="#06D6A0", bg="#0B0C10",
+        self.time_label = tk.Label(self.bg_canvas, text="Time: 0s", fg="#7AE3FF", bg=status_bg,
                                    font=("Arial", 12, "bold"), relief="flat", bd=0)
-        self.time_label_window = self.bg_canvas.create_window(220, 12, window=self.time_label, anchor="nw")
+        self.time_label_window = self.bg_canvas.create_window(260, 12, window=self.time_label, anchor="nw")
         
         # Add text shadow effect to time label
         try:
-            self.time_shadow = self.bg_canvas.create_text(222, 14, text="Time: 0s", fill="#000000", 
+            self.time_shadow = self.bg_canvas.create_text(258, 14, text="Time: 0s", fill="#000000", 
                                                          font=("Arial", 12, "bold"), anchor="nw")
             self.bg_canvas.tag_lower(self.time_shadow)
         except Exception:
