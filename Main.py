@@ -1,7 +1,5 @@
-import tkinter as tk
-from SplashScreen import ModernSplashScreen   # Import class
+from SplashScreen import PygameSplashScreen   # Import pygame splash screen
 
 if __name__ == "__main__":
-    splash_root = tk.Tk()
-    splash = ModernSplashScreen(splash_root)  # Khởi tạo SplashScreen
-    splash_root.mainloop()
+    app = PygameSplashScreen()
+    app.run()

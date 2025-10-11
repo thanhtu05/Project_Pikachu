@@ -12,26 +12,7 @@ def main():
     
     # Tạo một số dữ liệu history mẫu
     sample_history = [
-        {
-            "rows": 4, "cols": 4, "algo": "DFS", "mode": "Manual",
-            "cost": 12, "time": 45, "steps": 8, "visited": 25, "generated": 45, "time_ms": 2.5
-        },
-        {
-            "rows": 4, "cols": 4, "algo": "BFS", "mode": "Auto",
-            "cost": 10, "time": 38, "steps": 6, "visited": 18, "generated": 32, "time_ms": 1.8
-        },
-        {
-            "rows": 4, "cols": 4, "algo": "A*", "mode": "Auto",
-            "cost": 8, "time": 32, "steps": 4, "visited": 12, "generated": 20, "time_ms": 1.2
-        },
-        {
-            "rows": 4, "cols": 4, "algo": "UCS", "mode": "Manual",
-            "cost": 14, "time": 52, "steps": 10, "visited": 35, "generated": 58, "time_ms": 3.1
-        },
-        {
-            "rows": 4, "cols": 4, "algo": "DFS", "mode": "Auto",
-            "cost": 11, "time": 41, "steps": 7, "visited": 22, "generated": 38, "time_ms": 2.0
-        }
+        {}
     ]
     
     # Lưu dữ liệu mẫu vào file history

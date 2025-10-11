@@ -157,8 +157,8 @@ class PikachuGame:
         self.game_won = False  # Reset game won flag
         self.cost = 0
         self.time_elapsed = 0
-        self.ui.moves_label.config(text="Cost: 0")
-        self.ui.time_label.config(text="Time: 0s")
+        self.ui.update_moves(0)
+        self.ui.update_time("0s")
         self.selected = []
         self.clear_highlights()
         self.clear_simulation_highlights()
@@ -238,13 +238,13 @@ class PikachuGame:
 
     def update_timer(self):
         if self.timer_running and not self.game_paused:
-            self.ui.time_label.config(text=f"Time: {self.time_elapsed}s")
+            self.ui.update_time(f"{self.time_elapsed}s")
             self.time_elapsed += 1
             try:
                 self._timer_after_id = self.root.after(1000, self.update_timer)
             except Exception:
                 pass
-        self.bg_canvas.tag_raise(self.ui.time_label_window)  # Đảm bảo luôn trên cùng
+        # Time label is now handled by pill system
 
     def stop_timer(self):
         self.timer_running = False
@@ -804,7 +804,7 @@ class PikachuGame:
     def update_cost(self, path_length):
         """Cập nhật cost dựa trên chiều dài đường đi."""
         self.cost += path_length
-        self.ui.moves_label.config(text=f"Cost: {self.cost}")
+        self.ui.update_moves(self.cost)
 
     def win_game(self):
         if self.game_won:
