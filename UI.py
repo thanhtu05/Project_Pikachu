@@ -766,12 +766,32 @@ class GameUI:
         self.sound_var = tk.BooleanVar(value=True)
         self.toggle_sound()
         
-        # Add mode and algorithm variables
+        # Backward-compatible mode variable (kept as 'Manual') so game code checking mode still functions
         self.mode_var = tk.StringVar(value="Manual")
+        # Algorithm variable
         self.algo_var = tk.StringVar(value="DFS")
         
-        # Create dropdown menus for mode and algorithm
+        # Create dropdown menus for algorithm (mode UI replaced by hint)
         self._create_dropdown_menus()
+
+        #++++++++++++++++++++++++++++
+        # ================== TIME BAR (COUNTDOWN) ==================
+        self.time_limit = 420  # tổng thời gian (giây) = 7 phút
+        self.remaining_time = self.time_limit
+        self._countdown_running = False
+
+        # Tạo thanh thời gian (gradient)
+        self.time_bar_bg = self.bg_canvas.create_rectangle(250, 60, 750, 80, fill="#333", outline="#555", width=2)
+        self.time_bar_fill = self.bg_canvas.create_rectangle(250, 60, 750, 80, fill="#00FF00", outline="")
+        self.time_text = self.bg_canvas.create_text(730, 70, text="07:00", fill="#FFFFFF", font=("Poppins", 11, "bold"))
+
+        # Initial render of the time bar (no automatic ticking here)
+        self.update_time_bar_tk()
+
+
+
+
+
 
         # React to dropdown changes - stop auto when algorithm or mode changes
         def _on_mode_change(*_):
@@ -842,15 +862,7 @@ class GameUI:
         self.new_btn = PygameButton(self.bg_canvas, text="⚡ New Game", button_type="primary", **button_style)
         self.new_btn_window = self.bg_canvas.create_window(start_x + 0 * (button_spacing + button_width), 95, window=self.new_btn.button, anchor="nw")
 
-        self.auto_btn = PygameButton(self.bg_canvas, text="🚀 Start Auto", button_type="success", **button_style)
-        self.auto_btn_window = self.bg_canvas.create_window(start_x + 1 * (button_spacing + button_width), 95,
-                                                             window=self.auto_btn.button, anchor="nw")
-        # wire to game's start_auto if provided
-        if hasattr(self, 'game') and self.game and hasattr(self.game, 'start_auto'):
-            try:
-                self.auto_btn.config(command=self.game.start_auto)
-            except Exception:
-                pass
+    # NOTE: Hint button removed per request. Keep spacing so layout remains consistent.
 
         self.stop_btn = PygameButton(self.bg_canvas, text="⏹️ Stop", button_type="danger", command=self.pause_game, **button_style)
         self.stop_btn_window = self.bg_canvas.create_window(start_x + 2 * (button_spacing + button_width), 95,
@@ -900,10 +912,17 @@ class GameUI:
         # Add neon vertical lines around button area (similar to pygame version)
         self._draw_neon_decorations()
 
-        # Raise widgets to top
-        for win in [self.new_btn_window, self.auto_btn_window,
-                    self.stop_btn_window, self.continue_btn_window, self.history_btn_window,
-                    self.home_btn_window, self.canvas_window]:
+        # Raise widgets to top - only raise windows that exist
+        windows_to_raise = []
+        for name in [
+            'new_btn_window', 'auto_btn_window', 'stop_btn_window',
+            'continue_btn_window', 'history_btn_window', 'home_btn_window', 'canvas_window'
+        ]:
+            w = getattr(self, name, None)
+            if w:
+                windows_to_raise.append(w)
+
+        for win in windows_to_raise:
             try:
                 self.bg_canvas.tag_raise(win)
             except Exception:
@@ -929,6 +948,131 @@ class GameUI:
             self.canvas.create_rectangle(6, 6, w - 6, h - 6, outline="#87CEEB", width=1)
         except Exception:
             pass
+
+
+
+    def draw_time_bar(self, surface, x, y, width, height):
+        """Vẽ thanh thời gian đếm ngược có màu gradient."""
+        ratio = max(self.remaining_time / self.time_limit, 0)
+
+        # Tạo gradient từ đỏ -> vàng -> xanh lá
+        for i in range(width):
+            p = i / width
+            if p < 0.5:
+                r = 255
+                g = int(510 * p)
+            else:
+                r = int(510 * (1 - p))
+                g = 255
+            b = 0
+            color = (r, g, b)
+            pygame.draw.line(surface, color, (x + i, y), (x + i, y + height))
+
+        # Vẽ khung bao
+        pygame.draw.rect(surface, (80, 40, 10), (x - 2, y - 2, width + 4, height + 4), border_radius=8, width=2)
+
+        # Vẽ phần bị mất (thời gian đã trôi qua)
+        fill_width = int(width * ratio)
+        overlay_rect = pygame.Rect(x + fill_width, y, width - fill_width, height)
+        pygame.draw.rect(surface, (0, 0, 0, 100), overlay_rect)
+
+        # Vẽ biểu tượng đồng hồ & text
+        font = pygame.font.SysFont("Segoe UI", 20, bold=True)
+        mins = int(self.remaining_time // 60)
+        secs = int(self.remaining_time % 60)
+        time_str = f"{mins:02d}:{secs:02d}"
+        text_surf = font.render(time_str, True, (255, 255, 255))
+        icon = font.render("⏰", True, (255, 200, 0))
+        surface.blit(icon, (x + width - 70, y - 2))
+        surface.blit(text_surf, (x + width - 40, y))
+
+    def update_time_bar(self):
+        """Cập nhật thời gian đếm ngược."""
+        now = pygame.time.get_ticks()
+        if now - self.last_update_time >= 1000:
+            self.last_update_time = now
+            self.remaining_time -= 1
+            if self.remaining_time <= 0:
+                self.remaining_time = 0
+                self.on_time_up()
+
+    def on_time_up(self):
+        """Xử lý khi hết thời gian."""
+        print("⏰ Hết giờ!")
+        # bạn có thể gọi self.game.win_game() hoặc self.game.lose_game() ở đây
+
+    def update_time_bar_tk(self):
+        """Render the current remaining_time on the time bar (render-only).
+        The ticking is driven by the game logic (Game.start_timer / _timer_tick).
+        """
+        mins = int(self.remaining_time // 60)
+        secs = int(self.remaining_time % 60)
+        try:
+            self.bg_canvas.itemconfig(self.time_text, text=f"{mins:02d}:{secs:02d}")
+        except Exception:
+            pass
+
+        # Update bar fill
+        full_width = 500  # chiều dài đầy đủ
+        bar_left, bar_top, bar_right, bar_bottom = 250, 60, 750, 80
+        try:
+            fill_width = int((max(self.remaining_time, 0) / max(self.time_limit, 1)) * full_width)
+            self.bg_canvas.coords(self.time_bar_fill, bar_left, bar_top, bar_left + fill_width, bar_bottom)
+        except Exception:
+            pass
+
+        # color gradient
+        try:
+            ratio = max(min(self.remaining_time / max(self.time_limit, 1), 1.0), 0.0)
+            if ratio > 0.5:
+                r, g = int(255 * (1 - ratio) * 2), 255
+            else:
+                r, g = 255, int(255 * ratio * 2)
+            color = f"#{r:02x}{g:02x}00"
+            self.bg_canvas.itemconfig(self.time_bar_fill, fill=color)
+        except Exception:
+            pass
+
+        # If countdown has reached zero, optionally notify game
+        if self.remaining_time <= 0:
+            try:
+                self.bg_canvas.itemconfig(self.time_text, text="⏰ 00:00")
+            except Exception:
+                pass
+            try:
+                if hasattr(self, 'game') and self.game and hasattr(self.game, 'on_time_up'):
+                    self.game.on_time_up()
+            except Exception:
+                pass
+
+    def set_remaining_time(self, seconds: int):
+        """Set remaining_time (seconds) and refresh the bar/text."""
+        try:
+            self.remaining_time = max(int(seconds), 0)
+        except Exception:
+            self.remaining_time = 0
+        self.update_time_bar_tk()
+
+    def reset_countdown(self):
+        """Reset countdown to full time_limit and refresh UI."""
+        self.set_remaining_time(self.time_limit)
+
+    def start_countdown(self):
+        """Mark that countdown is active (mostly informational; ticking driven by Game)."""
+        self._countdown_running = True
+
+    def stop_countdown(self):
+        """Mark that countdown is inactive."""
+        self._countdown_running = False
+
+
+
+
+
+
+
+
+
 
     def toggle_sound(self):
         state = self.sound_var.get()
@@ -1162,20 +1306,20 @@ class GameUI:
         self._create_modern_pill(250, 22, 320, 48, "💰 Cost: 0", "#FFD600", "#FFFFFF", "cost")
         
         # Time pill - Orange accent
-        self._create_modern_pill(340, 22, 410, 48, "⏱️ Time: 0s", "#FF8C00", "#FFFFFF", "time")
+        #self._create_modern_pill(340, 22, 410, 48, "⏱️ Time: 0s", "#FF8C00", "#FFFFFF", "time")
         
         # Sound pill - Blue accent with click functionality
-        self._create_modern_pill(430, 22, 500, 48, "🔈 Sound", "#42A5F5", "#FFFFFF", "sound")
+        self._create_modern_pill(340, 22, 410, 48, "🔈 Sound", "#42A5F5", "#FFFFFF", "sound")
         # Make sound pill clickable
         self.bg_canvas.tag_bind(self.sound_text_main, "<Button-1>", lambda e: self.toggle_sound_click())
         self.bg_canvas.tag_bind(self.sound_text_shadow_light, "<Button-1>", lambda e: self.toggle_sound_click())
         self.bg_canvas.tag_bind(self.sound_text_shadow_dark, "<Button-1>", lambda e: self.toggle_sound_click())
         
-        # Mode pill - Green accent (clickable)
-        self._create_clickable_pill(520, 22, 590, 48, "📋 Manual", "#4CAF50", "#FFFFFF", "mode")
+        # Hint pill - Green accent (clickable). Replaces mode pill.
+        self._create_clickable_pill(430, 22, 500, 48, "💡 Hint", "#4CAF50", "#FFFFFF", "hint")
         
         # Algorithm pill - Purple accent (clickable)
-        self._create_clickable_pill(610, 22, 680, 48, "🧠 DFS", "#9C27B0", "#FFFFFF", "algo")
+        #self._create_clickable_pill(610, 22, 680, 48, "🧠 DFS", "#9C27B0", "#FFFFFF", "algo")
     
     def _create_modern_pill(self, x1, y1, x2, y2, text, bg_color, text_color, pill_type):
         """Create a modern pill with enhanced readability and glow effects"""
@@ -1269,6 +1413,7 @@ class GameUI:
         
         # Store references for updates
         if pill_type == "mode":
+            # older mode pill kept for backward compatibility
             self.mode_pill_bg = pill_bg
             self.mode_pill_glow = pill_glow
             self.mode_text_shadow_dark = text_shadow_dark
@@ -1276,19 +1421,40 @@ class GameUI:
             self.mode_text_main = text_main
             self.mode_values = ["Manual", "Auto"]
             self.mode_current_index = 0
+        elif pill_type == "hint":
+            # hint pill stores references and will call game.show_hint when clicked
+            self.hint_pill_bg = pill_bg
+            self.hint_pill_glow = pill_glow
+            self.hint_text_shadow_dark = text_shadow_dark
+            self.hint_text_shadow_light = text_shadow_light
+            self.hint_text_main = text_main
         elif pill_type == "algo":
             self.algo_pill_bg = pill_bg
             self.algo_pill_glow = pill_glow
             self.algo_text_shadow_dark = text_shadow_dark
             self.algo_text_shadow_light = text_shadow_light
             self.algo_text_main = text_main
-            self.algo_values = ["DFS", "BFS", "A*"]
+            self.algo_values = ["DFS"]
             self.algo_current_index = 0
         
         # Make pill clickable
-        self.bg_canvas.tag_bind(text_main, "<Button-1>", lambda e, ptype=pill_type: self._cycle_pill_value(ptype))
-        self.bg_canvas.tag_bind(text_shadow_light, "<Button-1>", lambda e, ptype=pill_type: self._cycle_pill_value(ptype))
-        self.bg_canvas.tag_bind(text_shadow_dark, "<Button-1>", lambda e, ptype=pill_type: self._cycle_pill_value(ptype))
+        if pill_type == "hint":
+            # Trigger game's show_hint if available
+            self.bg_canvas.tag_bind(text_main, "<Button-1>", lambda e: self._on_hint_click())
+            self.bg_canvas.tag_bind(text_shadow_light, "<Button-1>", lambda e: self._on_hint_click())
+            self.bg_canvas.tag_bind(text_shadow_dark, "<Button-1>", lambda e: self._on_hint_click())
+        else:
+            self.bg_canvas.tag_bind(text_main, "<Button-1>", lambda e, ptype=pill_type: self._cycle_pill_value(ptype))
+            self.bg_canvas.tag_bind(text_shadow_light, "<Button-1>", lambda e, ptype=pill_type: self._cycle_pill_value(ptype))
+            self.bg_canvas.tag_bind(text_shadow_dark, "<Button-1>", lambda e, ptype=pill_type: self._cycle_pill_value(ptype))
+
+    def _on_hint_click(self):
+        """Call game's show_hint if available; otherwise do nothing."""
+        try:
+            if hasattr(self, 'game') and self.game and hasattr(self.game, 'show_hint'):
+                self.game.show_hint()
+        except Exception:
+            pass
     
     def _cycle_pill_value(self, pill_type):
         """Cycle through values when pill is clicked"""
@@ -1330,7 +1496,7 @@ class GameUI:
     def update_moves(self, moves):
         """Update cost display"""
         try:
-            text = f"💰 Cost: {moves}"
+            text = f"💰 Scores: {moves}"
             self.bg_canvas.itemconfig(self.cost_text_shadow_dark, text=text)
             self.bg_canvas.itemconfig(self.cost_text_shadow_light, text=text)
             self.bg_canvas.itemconfig(self.cost_text_main, text=text)

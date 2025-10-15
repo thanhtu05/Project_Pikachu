@@ -15,7 +15,7 @@ import hashlib
 class PikachuGame:
     def __init__(self, root, rows=8, cols=12):  # Thêm tham số mặc định
         self.root = root
-        self.root.title("Pikachu - Pham Thi Van Anh - Hoang Thanh Tu")
+        self.root.title("GAME PIKACHU")
         self.rows, self.cols = rows, cols
         self.cell_size = 60
         self.click_tolerance = 15  # Vùng click mở rộng xung quanh mỗi ô
@@ -62,8 +62,13 @@ class PikachuGame:
             pass
         self.bg_canvas = self.ui.canvas
         self.ui.new_btn.config(command=self.new_game)
-        # Ensure clicking Start Auto switches mode to Auto and starts
-        self.ui.auto_btn.config(command=self.handle_start_auto_click)
+        # Ensure clicking Hint triggers a suggested next move (previously Start Auto)
+        # Hint button removed from UI; keep backward-compatible auto wiring
+        try:
+            if hasattr(self.ui, 'auto_btn'):
+                self.ui.auto_btn.config(command=self.handle_start_auto_click)
+        except Exception:
+            pass
         self.ui.home_btn.config(command=self.go_to_splash_screen)
         # Connect skip button (if present)
         try:
@@ -78,6 +83,10 @@ class PikachuGame:
 
         self.image_ids = {}
         self.new_game()
+
+        # Timer fields: use UI.time_limit / UI.remaining_time as source of truth for countdown
+        self._timer_after_id = None
+        
 
     def handle_start_auto_click(self):
         """Switch to Auto mode and start the auto simulation."""
@@ -96,6 +105,68 @@ class PikachuGame:
             self.start_auto()
         except Exception:
             pass
+
+    def show_hint(self):
+        """Highlight a suggested pair (next move) without removing it.
+        Uses current algorithm to find a pair and draws a temporary highlight.
+        """
+        try:
+            algo = self.ui.algo_var.get() if hasattr(self.ui, 'algo_var') else 'DFS'
+            pair = self.find_pair(algo)
+            if not pair:
+                # If no pair found, flash a message on canvas
+                try:
+                    mid_x = (self.cols * self.cell_size) // 2
+                    mid_y = (self.rows * self.cell_size) // 2
+                    msg_id = self.ui.canvas.create_text(mid_x, mid_y, text="No Hint Available", fill="#E74C3C", font=("Arial", 16, "bold"))
+                    self.root.after(1200, lambda: self.ui.canvas.delete(msg_id))
+                except Exception:
+                    pass
+                return
+
+            (r1, c1), (r2, c2), path = pair
+
+            # Draw a temporary highlight rectangle around both cells
+            x1 = c1 * self.cell_size + 3
+            y1 = r1 * self.cell_size + 3
+            x2 = (c1 + 1) * self.cell_size - 3
+            y2 = (r1 + 1) * self.cell_size - 3
+            id1 = self.ui.canvas.create_rectangle(x1, y1, x2, y2, outline="#00FF00", width=4)
+
+            x1b = c2 * self.cell_size + 3
+            y1b = r2 * self.cell_size + 3
+            x2b = (c2 + 1) * self.cell_size - 3
+            y2b = (r2 + 1) * self.cell_size - 3
+            id2 = self.ui.canvas.create_rectangle(x1b, y1b, x2b, y2b, outline="#00FF00", width=4)
+
+            # Also draw a temporary path line if available
+            if path and len(path) >= 2:
+                coords = []
+                for (r, c) in path:
+                    coords.extend([c * self.cell_size + self.cell_size // 2, r * self.cell_size + self.cell_size // 2])
+                line_id = self.ui.canvas.create_line(*coords, fill="#00FF00", width=3, dash=(6, 4))
+            else:
+                line_id = None
+
+            # Remove highlights after short delay
+            def _clear_hint():
+                try:
+                    self.ui.canvas.delete(id1)
+                except Exception:
+                    pass
+                try:
+                    self.ui.canvas.delete(id2)
+                except Exception:
+                    pass
+                if line_id:
+                    try:
+                        self.ui.canvas.delete(line_id)
+                    except Exception:
+                        pass
+
+            self.root.after(1200, _clear_hint)
+        except Exception:
+            pass
     
     def on_algo_change(self, algo_value):
         """Called when algorithm is changed - stop auto if running"""
@@ -111,15 +182,36 @@ class PikachuGame:
 
     def go_to_splash_screen(self):
         """Quay về giao diện SplashScreen và dừng trò chơi hiện tại."""
-        self.stop_timer()
+        # Stop timers and simulation, then destroy the Tk window and return to the
+        # original pygame-based splash screen that the app starts with.
+        try:
+            self.stop_timer()
+        except Exception:
+            pass
         self.auto_running = False
         self.game_paused = True
-        self.root.destroy()  # Đóng cửa sổ hiện tại
-        import SplashScreen
-        splash_root = tk.Tk()  # Tạo root mới cho SplashScreen
-        splash_screen = SplashScreen.ModernSplashScreen(splash_root)
-        splash_screen.show()  # Hiển thị SplashScreen
-        splash_root.mainloop()
+        # Destroy the current Tkinter root before launching pygame splash
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+
+        # Launch the Pygame splash screen (the same entrypoint used by Main.py)
+        try:
+            import SplashScreen
+            splash = SplashScreen.PygameSplashScreen()
+            splash.run()
+        except Exception as e:
+            # Fallback: if Pygame splash cannot be launched, fall back to the
+            # ModernSplashScreen Tkinter variant so Home still returns to a menu.
+            try:
+                print(f"Error launching Pygame splash: {e}. Falling back to ModernSplashScreen.")
+                splash_root = tk.Tk()
+                splash_screen = SplashScreen.ModernSplashScreen(splash_root)
+                splash_screen.show()
+                splash_root.mainloop()
+            except Exception:
+                pass
 
     def clear_simulation_highlights(self):
         """Xóa tất cả highlight của simulation"""
@@ -159,6 +251,20 @@ class PikachuGame:
         self.time_elapsed = 0
         self.ui.update_moves(0)
         self.ui.update_time("0s")
+        # Reset countdown UI and stop any running timer
+        try:
+            if hasattr(self.ui, 'reset_countdown'):
+                self.ui.reset_countdown()
+            else:
+                # Fallback: set remaining_time to ui.time_limit
+                if hasattr(self.ui, 'time_limit'):
+                    self.ui.set_remaining_time(self.ui.time_limit)
+        except Exception:
+            pass
+        try:
+            self.stop_timer()
+        except Exception:
+            pass
         self.selected = []
         self.clear_highlights()
         self.clear_simulation_highlights()
@@ -166,6 +272,8 @@ class PikachuGame:
         self.board.new_board()
         self.algorithms.board = self.board.board
         self.algorithms.reset_simulation()
+
+
 
         # Disable skip by default when starting a new game
         try:
@@ -211,20 +319,51 @@ class PikachuGame:
     def stop_game(self):
         """Dừng trò chơi và chế độ tự động"""
         self.auto_running = False
-        if hasattr(self, 'auto_timer'):
-            self.root.after_cancel(self.auto_timer)  # Hủy timer tự động
+        # Cancel any auto-simulation timer
+        try:
+            # remember whether auto was running so Continue can resume it
+            self._was_auto_running = getattr(self, 'auto_running', False)
+            if hasattr(self, 'auto_timer') and self.auto_timer:
+                self.root.after_cancel(self.auto_timer)
+                self.auto_timer = None
+        except Exception:
+            pass
+
+        # Pause the countdown timer too so Continue can resume it
+        try:
+            self.stop_timer()
+        except Exception:
+            pass
+
         self.game_paused = True
 
     def continue_game(self):
         if self.game_paused:
             self.game_paused = False
             self.start_timer()
-            if self.ui.mode_var.get() == "Auto" and not self.auto_running:
-                self.start_auto()
+            # Resume auto if it was running before stop
+            try:
+                if getattr(self, '_was_auto_running', False) and not self.auto_running:
+                    self.start_auto()
+            except Exception:
+                pass
 
     def start_timer(self):
+        if self.timer_running:
+            return
         self.timer_running = True
-        self.update_timer()
+        try:
+            if hasattr(self.ui, 'start_countdown'):
+                self.ui.start_countdown()
+        except Exception:
+            pass
+        # schedule first tick
+        try:
+            if hasattr(self, '_timer_after_id') and self._timer_after_id:
+                self.root.after_cancel(self._timer_after_id)
+        except Exception:
+            pass
+        self._timer_after_id = self.root.after(1000, self.update_timer)
 
     def redraw_remaining_icons(self):
         # Update existing images or delete if removed
@@ -236,15 +375,69 @@ class PikachuGame:
                 icon = self.icons[self.board.board[r][c]]
                 self.ui.canvas.itemconfig(img_id, image=icon)
 
+    # def update_timer(self):
+    #     if self.timer_running and not self.game_paused:
+    #         self.ui.update_time(f"{self.time_elapsed}s")
+    #         self.time_elapsed += 1
+    #         try:
+    #             self._timer_after_id = self.root.after(1000, self.update_timer)
+    #         except Exception:
+    #             pass
+    #     # Time label is now handled by pill system
     def update_timer(self):
-        if self.timer_running and not self.game_paused:
-            self.ui.update_time(f"{self.time_elapsed}s")
+        """Tick handler called every second while timer_running.
+        Updates elapsed time and decrements UI countdown.
+        """
+        try:
+            if not self.timer_running or self.game_paused or self.game_won:
+                return
+
+            # Increase elapsed time
             self.time_elapsed += 1
+
+            # Update UI elapsed time pill
+            try:
+                self.ui.update_time(f"{self.time_elapsed}s")
+            except Exception:
+                pass
+
+            # Decrement UI countdown if available
+            try:
+                current_remaining = getattr(self.ui, 'remaining_time', None)
+                if current_remaining is None:
+                    # If UI doesn't expose remaining_time, nothing to do
+                    pass
+                else:
+                    new_remaining = max(int(current_remaining) - 1, 0)
+                    try:
+                        self.ui.set_remaining_time(new_remaining)
+                    except Exception:
+                        # fallback: directly set attribute and render
+                        try:
+                            self.ui.remaining_time = new_remaining
+                            self.ui.update_time_bar_tk()
+                        except Exception:
+                            pass
+
+                    # If countdown reached zero -> time up
+                    if new_remaining <= 0:
+                        self.stop_timer()
+                        try:
+                            self.on_time_up()
+                        except Exception:
+                            pass
+                        return
+
+            except Exception:
+                pass
+
+            # schedule next tick
             try:
                 self._timer_after_id = self.root.after(1000, self.update_timer)
             except Exception:
-                pass
-        # Time label is now handled by pill system
+                self._timer_after_id = None
+        except Exception:
+            pass
 
     def stop_timer(self):
         self.timer_running = False
@@ -252,6 +445,11 @@ class PikachuGame:
             if hasattr(self, '_timer_after_id') and self._timer_after_id:
                 self.root.after_cancel(self._timer_after_id)
                 self._timer_after_id = None
+        except Exception:
+            pass
+        try:
+            if hasattr(self.ui, 'stop_countdown'):
+                self.ui.stop_countdown()
         except Exception:
             pass
 
@@ -410,19 +608,8 @@ class PikachuGame:
         temp_simulation_mode = self.algorithms.simulation_mode
         self.algorithms.simulation_mode = False
 
-        if algo == "DFS":
-            path = self.algorithms.dfs(start, goal)
-        elif algo == "BFS":
-            path = self.algorithms.bfs(start, goal)
-        elif algo == "UCS":
-            path = self.algorithms.ucs(start, goal)
-        elif algo == "A*":
-            path = self.algorithms.astar(start, goal)
-        elif algo == "HillClimb":
-            path = self.algorithms.hill_climb(start, goal)
-        else:
-            path = self.algorithms.astar(start, goal)
-
+        path = self.algorithms.dfs(start, goal)
+    
         # Khôi phục simulation mode
         self.algorithms.simulation_mode = temp_simulation_mode
 
@@ -816,7 +1003,15 @@ class PikachuGame:
         self.save_history_entry()
         self.win_screen = WinScreen(self.root, self, self.cost, self.time_elapsed)
         self.win_screen.show()
-        self.root.after_cancel(self._timer_after_id) if hasattr(self, '_timer_after_id') else None
+        #self.root.after_cancel(self._timer_after_id) if hasattr(self, '_timer_after_id') else None
+        # ✅ Dừng timer an toàn
+        if hasattr(self, '_timer_after_id') and self._timer_after_id is not None:
+            try:
+                self.root.after_cancel(self._timer_after_id)
+            except Exception:
+                pass
+            self._timer_after_id = None
+
         if hasattr(self, 'auto_timer'):
             self.root.after_cancel(self.auto_timer)
 
@@ -879,20 +1074,10 @@ class PikachuGame:
             generated_val = self.total_generated
             time_ms_val = algo_stats.get('time_ms', 0)
 
+        # Store only minimal fields for history as requested: score (cost), time, and state id/key
         entry = {
-            "rows": self.rows,
-            "cols": self.cols,
-            "algo": algo_val,
-            "mode": mode_val,
             "cost": self.cost,
             "time": self.time_elapsed,
-            "steps": steps_val,
-            "visited": visited_val,  # Sử dụng total_visited
-            "generated": generated_val,  # Sử dụng total_generated
-            "reshuffles": self.reshuffle_count,
-            "time_ms": time_ms_val,
-            "total_visited": self.total_visited,  # Giữ tổng để tham chiếu
-            "total_generated": self.total_generated,  # Giữ tổng để tham chiếu
             "state_key": state_key,
             "state": state_id
         }
@@ -954,7 +1139,7 @@ class PikachuGame:
             ("🎯 Total Games", f"{total_games}"),
             ("⏱️ Avg Time", f"{avg_time:.1f}s"),
             ("🏆 Best Time", f"{best_time}s"),
-            ("🎪 Best Cost", f"{best_cost}")
+            ("🎪 Best Score", f"{best_cost}")
         ]
 
         for i, (label, value) in enumerate(stats_data):
@@ -1004,25 +1189,21 @@ class PikachuGame:
         toolbar_frame.pack(fill="x", padx=10, pady=10)
         toolbar_frame.pack_propagate(False)
 
-        # Nút lọc theo thuật toán
-        tk.Label(toolbar_frame, text="Filter by Algorithm:", font=("Arial", 10, "bold"),
-                 bg="#0f3460", fg="#ffffff").pack(side="left", padx=(0, 10))
 
-        self.filter_algo_var = tk.StringVar(value="All")
-        algo_filter = ttk.Combobox(toolbar_frame, textvariable=self.filter_algo_var,
-                                   values=["All", "DFS", "BFS", "UCS", "A*", "Manual"],
-                                   state="readonly", width=10)
-        algo_filter.pack(side="left", padx=(0, 20))
+    # Filter by algorithm removed
 
         # Nút sắp xếp
         tk.Label(toolbar_frame, text="Sort by:", font=("Arial", 10, "bold"),
                  bg="#0f3460", fg="#ffffff").pack(side="left", padx=(0, 10))
 
-        self.sort_var = tk.StringVar(value="Time (Newest)")
+        self.sort_var = tk.StringVar(value="Time (Shortest)")
         sort_combo = ttk.Combobox(toolbar_frame, textvariable=self.sort_var,
-                  values=["Time (Newest)", "Time (Oldest)", "Cost (Low)", "Cost (High)",
-                      "Algorithm", "Mode"],
-                  state="readonly", width=15)
+                  values=[
+                      "Time (Shortest)", "Time (Longest)",
+                      "State (Nearest)", "State (Farthest)",
+                      "Score (Highest)", "Score (Lowest)"
+                  ],
+                  state="readonly", width=18)
         sort_combo.pack(side="left", padx=(0, 20))
 
         # Nút refresh
@@ -1063,15 +1244,15 @@ class PikachuGame:
         # Tạo frame cho treeview và scrollbar
         tree_frame = tk.Frame(data_frame, bg="#16213e")
         tree_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        cols = ("#", "State", "Algorithm", "Mode", "Cost", "Time (s)", "Visited", "Generated", "Reshuffles")
+        # Simplified data table: only Score and Time as requested
+        cols = ("#", "Score", "Time (s)")
         tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=12, style="Custom.Treeview")
 
-        # Cấu hình cột với độ rộng phù hợp
-        column_widths = {"#": 40, "State": 60, "Algorithm": 80, "Mode": 60, "Cost": 60, "Time (s)": 70,
-                         "Visited": 70, "Generated": 80, "Reshuffles": 80}
+        # Configure columns (only Score and Time)
+        column_widths = {"#": 60, "Score": 120, "Time (s)": 120}
         for c in cols:
             tree.heading(c, text=c)
-            tree.column(c, width=column_widths[c], anchor="center")
+            tree.column(c, width=column_widths.get(c, 100), anchor="center")
 
         # Thêm dữ liệu với màu sắc
         self.populate_history_table(tree, history)
@@ -1110,8 +1291,7 @@ class PikachuGame:
         self.history_tree = tree
         self.history_data = history
 
-        # Bind events
-        algo_filter.bind("<<ComboboxSelected>>", lambda e: self.filter_history(tree, history))
+        # Bind sort event only
         sort_combo.bind("<<ComboboxSelected>>", lambda e: self.sort_history(tree, history))
 
     def create_gradient_background(self, win):
@@ -1145,54 +1325,39 @@ class PikachuGame:
             tree.delete(item)
 
         # Thêm dữ liệu mới
+        # We only display Score and Time. 'Score' uses 'cost' (fallback to 'moves').
         for i, h in enumerate(reversed(history), 1):
-            values = (
-                i,
-                h.get("state", "N/A"),
-                h.get("algo", "N/A"),
-                h.get("mode", "N/A"),
-                # display cost, fallback to moves for older histories
-                h.get("cost", h.get("moves", 0)),
-                h.get("time", 0),
-                h.get("visited", 0),
-                h.get("generated", 0),
-                h.get("reshuffles", 0)
-            )
+            score = h.get("cost", h.get("moves", 0))
+            time_val = h.get("time", 0)
+            values = (i, score, time_val)
             tree.insert("", "end", values=values)
 
         # Nếu không có dữ liệu, hiển thị thông báo
         if not history:
-            tree.insert("", "end", values=("", "", "No data", "", "", "", "", "", "", ""))
+            # Insert a single-row message matching the simplified columns
+            tree.insert("", "end", values=("", "No data", ""))
 
     def filter_history(self, tree, history):
-        """Lọc history theo thuật toán"""
-        filter_algo = self.filter_algo_var.get()
-        if filter_algo == "All":
-            filtered_history = history
-        else:
-            filtered_history = [h for h in history if h.get("algo") == filter_algo]
-
-        self.populate_history_table(tree, filtered_history)
+        # Filter by algorithm removed; no-op
+        pass
 
     def sort_history(self, tree, history):
         """Sắp xếp history theo tiêu chí"""
         sort_by = self.sort_var.get()
-
-        if sort_by == "Time (Newest)":
-            sorted_history = sorted(history, key=lambda x: x.get("time", 0), reverse=True)
-        elif sort_by == "Time (Oldest)":
+        if sort_by == "Time (Shortest)":
             sorted_history = sorted(history, key=lambda x: x.get("time", 0))
-        elif sort_by == "Cost (Low)":
-            sorted_history = sorted(history, key=lambda x: x.get("cost", x.get("moves", 0)))
-        elif sort_by == "Cost (High)":
+        elif sort_by == "Time (Longest)":
+            sorted_history = sorted(history, key=lambda x: x.get("time", 0), reverse=True)
+        elif sort_by == "State (Nearest)":
+            sorted_history = sorted(history, key=lambda x: x.get("state", 0))
+        elif sort_by == "State (Farthest)":
+            sorted_history = sorted(history, key=lambda x: x.get("state", 0), reverse=True)
+        elif sort_by == "Score (Highest)":
             sorted_history = sorted(history, key=lambda x: x.get("cost", x.get("moves", 0)), reverse=True)
-        elif sort_by == "Algorithm":
-            sorted_history = sorted(history, key=lambda x: x.get("algo", ""))
-        elif sort_by == "Mode":
-            sorted_history = sorted(history, key=lambda x: x.get("mode", ""))
+        elif sort_by == "Score (Lowest)":
+            sorted_history = sorted(history, key=lambda x: x.get("cost", x.get("moves", 0)))
         else:
             sorted_history = history
-
         self.populate_history_table(tree, sorted_history)
 
     def refresh_history_table(self, tree, history):
@@ -1225,20 +1390,15 @@ class PikachuGame:
 
             if filename:
                 with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                    fieldnames = ['Algorithm', 'Mode', 'Cost', 'Time (s)', 'Visited', 'Generated', 'Reshuffles']
+                    # Only export Score and Time as requested
+                    fieldnames = ['Score', 'Time (s)']
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
                     writer.writeheader()
                     for h in history:
                         writer.writerow({
-                            'Algorithm': h.get("algo", "N/A"),
-                            'Mode': h.get("mode", "N/A"),
-                            # write cost with fallback to moves
-                            'Cost': h.get("cost", h.get("moves", 0)),
-                            'Time (s)': h.get("time", 0),
-                            'Visited': h.get("visited", 0),
-                            'Generated': h.get("generated", 0),
-                            'Reshuffles': h.get("reshuffles", 0)
+                            'Score': h.get("cost", h.get("moves", 0)),
+                            'Time (s)': h.get("time", 0)
                         })
 
                 messagebox.showinfo("Success", f"History exported to {filename}")
@@ -1246,81 +1406,88 @@ class PikachuGame:
             messagebox.showerror("Error", f"Failed to export history: {str(e)}")
 
     def create_performance_charts(self, parent, history):
-        """Create grouped bar charts for average cost, time, and generated per algorithm."""
+        """Create a performance chart using matplotlib embedded into Tkinter.
+        Shows score (cost) over games (time axis using the saved time value as label).
+        If matplotlib is not available, show a friendly fallback message.
+        """
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+        except Exception:
+            no_lib_label = tk.Label(parent, text="matplotlib not available — install matplotlib to see charts",
+                                    font=("Arial", 12), bg="#16213e", fg="#e94560")
+            no_lib_label.pack(expand=True, pady=20)
+            return
+
         if not history:
             no_data_label = tk.Label(parent, text="No data available for charts",
                                      font=("Arial", 14, "bold"), bg="#16213e", fg="#e94560")
             no_data_label.pack(expand=True)
             return
 
-        # Aggregate and compute averages
-        algos = sorted({h.get('algo', 'Unknown') for h in history})
-        agg = {algo: {'cost': [], 'time': [], 'generated': []} for algo in algos}
+        # Prefer using integer `state` values on the x axis when they exist in history.
+        # Each history entry may include a numeric 'state' id; if present, we sort by that
+        # and plot Score vs state. Otherwise fall back to simple indexed games (oldest->newest).
+        state_tuples = []
         for h in history:
-            algo = h.get('algo', 'Unknown')
-            cost_val = h.get('cost', h.get('moves', 0))
-            agg[algo]['cost'].append(cost_val)
-            agg[algo]['time'].append(h.get('time', 0))
-            agg[algo]['generated'].append(h.get('generated', 0))
+            s = h.get('state')
+            try:
+                s_int = int(s)
+            except Exception:
+                s_int = None
+            if s_int is not None:
+                state_tuples.append((s_int, h.get('cost', h.get('moves', 0)), h.get('time', 0)))
 
-        avg = {}
-        for algo in algos:
-            avg[algo] = {
-                'cost': sum(agg[algo]['cost']) / max(len(agg[algo]['cost']), 1),
-                'time': sum(agg[algo]['time']) / max(len(agg[algo]['time']), 1),
-                'generated': sum(agg[algo]['generated']) / max(len(agg[algo]['generated']), 1),
-                'count': len(agg[algo]['cost'])
-            }
+        if state_tuples:
+            # sort by state id (ascending)
+            state_tuples.sort(key=lambda t: t[0])
+            x = [t[0] for t in state_tuples]
+            scores = [t[1] for t in state_tuples]
+            times = [t[2] for t in state_tuples]
+            xlabel = 'State (integer id)'
+        else:
+            # Fallback: use game index (oldest -> newest)
+            scores = [h.get('cost', h.get('moves', 0)) for h in history]
+            times = [h.get('time', 0) for h in history]
+            scores = list(reversed(scores))
+            times = list(reversed(times))
+            x = list(range(1, len(scores) + 1))
+            xlabel = 'Game (oldest → newest)'
 
-        # Create canvas
-        canvas = tk.Canvas(parent, bg="#1a1a2e", highlightthickness=0)
-        canvas.pack(fill="both", expand=True, padx=10, pady=10)
+        fig, ax = plt.subplots(figsize=(8, 4), dpi=100)
+        ax.plot(x, scores, marker='o', linestyle='-', color='#e94560', label='Score (cost)')
+        ax.set_title('Performance Over States')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel('Score (cost)')
+        ax.grid(True, linestyle='--', alpha=0.4)
 
-        w = 1000
-        h = 480
-        padding = 60
-        chart_w = w - 2 * padding
-        chart_h = h - 2 * padding
+        # Optional secondary axis for time values as annotations
+        for xi, sc, t in zip(x, scores, times):
+            ax.annotate(f"{t}s", (xi, sc), textcoords="offset points", xytext=(0, 6), ha='center', fontsize=8, color='#333')
 
-        # Prepare three subcharts stacked vertically: cost, time, generated
-        sub_h = (chart_h - 40) // 3
-        labels = ['Average Cost', 'Average Time (s)', 'Average Generated']
-        metrics = ['cost', 'time', 'generated']
-        colors = ['#e94560', '#27ae60', '#3498db', '#f39c12', '#9b59b6']
+        # If x are integer states, set integer ticks for readability (limit count)
+        try:
+            if all(isinstance(xi, int) for xi in x):
+                if len(x) <= 30:
+                    ax.set_xticks(x)
+                else:
+                    # too many ticks -> choose a subsample
+                    step = max(1, len(x) // 20)
+                    ax.set_xticks(x[::step])
+        except Exception:
+            pass
 
-        for idx, metric in enumerate(metrics):
-            top = padding + idx * (sub_h + 10)
-            left = padding
-            # axis
-            canvas.create_text(left + 10, top + 10, text=labels[idx], anchor='nw', fill='#fff', font=("Arial", 11, 'bold'))
-            # bars area
-            bar_area_x = left
-            bar_area_y = top + 30
-            bar_area_w = chart_w
-            bar_area_h = sub_h - 40
+        # Embed into Tkinter
+        canvas_fig = FigureCanvasTkAgg(fig, master=parent)
+        canvas_fig.draw()
+        widget = canvas_fig.get_tk_widget()
+        widget.pack(fill='both', expand=True, padx=10, pady=10)
 
-            # compute values and scale
-            values = [avg[a][metric] for a in algos]
-            max_val = max(values) if values else 1
-            if max_val == 0:
-                max_val = 1
-
-            bar_group_width = bar_area_w // max(1, len(algos))
-            bar_width = int(bar_group_width * 0.6)
-
-            for i, a in enumerate(algos):
-                v = avg[a][metric]
-                bar_h = int((v / max_val) * bar_area_h)
-                bx = bar_area_x + i * bar_group_width + (bar_group_width - bar_width) // 2
-                by = bar_area_y + (bar_area_h - bar_h)
-                canvas.create_rectangle(bx, by, bx + bar_width, bar_area_y + bar_area_h, fill=colors[i % len(colors)], outline='')
-                canvas.create_text(bx + bar_width // 2, bar_area_y + bar_area_h + 12, text=a, fill='#fff', font=("Arial", 9), anchor='n')
-                # value label
-                canvas.create_text(bx + bar_width // 2, by - 6, text=f"{v:.1f}", fill='#fff', font=("Arial", 8), anchor='s')
-
-        # Title
-        canvas.create_text(w // 2, padding - 20, text="Performance Averages by Algorithm",
-                            font=("Arial", 14, "bold"), fill="#fff")
+        # Keep reference so it doesn't get garbage collected
+        parent._mpl_fig = fig
+        parent._mpl_canvas = canvas_fig
 
     def draw_bar_chart(self, canvas, data, title, metric, x, y, width, height):
         """Vẽ biểu đồ cột"""

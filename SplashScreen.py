@@ -111,7 +111,7 @@ class PygameSplashScreen:
         pygame.init()
         self.SCREEN_WIDTH, self.SCREEN_HEIGHT = 900, 600
         self.screen = pygame.display.set_mode((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
-        pygame.display.set_caption("Pikachu Game - Pham Thi Van Anh - Hoang Thanh Tu")
+        pygame.display.set_caption("Pikachu Game")
 
         # Colors - Màu sắc hài hòa với nền
         self.WHITE = (255, 255, 255)
